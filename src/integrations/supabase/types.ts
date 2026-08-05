@@ -14,7 +14,150 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      ai_analyses: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          match_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          match_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          match_id?: string
+        }
+        Relationships: []
+      }
+      daily_predictions: {
+        Row: {
+          away_logo: string | null
+          away_team: string
+          confidence: number
+          created_at: string
+          home_logo: string | null
+          home_team: string
+          id: string
+          kickoff: string | null
+          league_name: string | null
+          match_date: string
+          match_id: string
+          predicted_away: number
+          predicted_home: number
+          reasoning: string | null
+          tmp_away: number | null
+          tmp_home: number | null
+        }
+        Insert: {
+          away_logo?: string | null
+          away_team: string
+          confidence?: number
+          created_at?: string
+          home_logo?: string | null
+          home_team: string
+          id?: string
+          kickoff?: string | null
+          league_name?: string | null
+          match_date: string
+          match_id: string
+          predicted_away: number
+          predicted_home: number
+          reasoning?: string | null
+          tmp_away?: number | null
+          tmp_home?: number | null
+        }
+        Update: {
+          away_logo?: string | null
+          away_team?: string
+          confidence?: number
+          created_at?: string
+          home_logo?: string | null
+          home_team?: string
+          id?: string
+          kickoff?: string | null
+          league_name?: string | null
+          match_date?: string
+          match_id?: string
+          predicted_away?: number
+          predicted_home?: number
+          reasoning?: string | null
+          tmp_away?: number | null
+          tmp_home?: number | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          display_name: string | null
+          email: string | null
+          id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+        }
+        Relationships: []
+      }
+      tmp_analyses: {
+        Row: {
+          away_team: string
+          confidence: number | null
+          content: string | null
+          created_at: string
+          home_team: string
+          id: string
+          predicted_away: number | null
+          predicted_home: number | null
+          tmp_away: number | null
+          tmp_home: number | null
+          user_id: string | null
+        }
+        Insert: {
+          away_team: string
+          confidence?: number | null
+          content?: string | null
+          created_at?: string
+          home_team: string
+          id?: string
+          predicted_away?: number | null
+          predicted_home?: number | null
+          tmp_away?: number | null
+          tmp_home?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          away_team?: string
+          confidence?: number | null
+          content?: string | null
+          created_at?: string
+          home_team?: string
+          id?: string
+          predicted_away?: number | null
+          predicted_home?: number | null
+          tmp_away?: number | null
+          tmp_home?: number | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
