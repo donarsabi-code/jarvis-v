@@ -231,21 +231,29 @@ export async function fetchMatchDetails(matchId: string): Promise<MatchDetail> {
   };
 }
 
-/** Resolve a free-text team name to a FotMob team + its recent form. */
+/** Resolve a free-text team name to a FotMob team. */
 export async function searchTeam(
   name: string,
 ): Promise<{ id: number; name: string; logo: string } | null> {
   const res = await fetch(
     `https://apigw.fotmob.com/searchapi/suggest?term=${encodeURIComponent(name)}&lang=fr,en`,
-    { headers: { "User-Agent": UA } },
+    { headers: { "User-Agent": UA, Accept: "application/json" } },
   ).catch(() => null);
-  if (res && res.ok) {
-    const json: any = await res.json().catch(() => null);
-    const hit = json?.squad?.dataset?.[0] ?? json?.teams?.[0];
-    if (hit) {
-      const id = Number(hit.id);
-      return { id, name: hit.name ?? name, logo: teamLogo(id) };
-    }
-  }
-  return null;
+  if (!res || !res.ok) return null;
+  const json: any = await res.json().catch(() => null);
+  const opt = json?.teamSuggest?.[0]?.options?.[0];
+  if (!opt?.payload?.id) return null;
+  const id = Number(opt.payload.id);
+  return { id, name: opt.text ?? name, logo: teamLogo(id) };
+}
+
+/** Recent form + TMP momentum score for a single team. */
+export async function fetchTeamForm(
+  teamId: number,
+  teamName: string,
+): Promise<{ form: FormItem[]; stats: TeamStats }> {
+  const raw = await fotmob<Record<string, any>>(`/teams?id=${teamId}&tab=overview`);
+  const form = mapForm((raw['overview']?.teamForm ?? []) as RawForm);
+  const realName = raw['details']?.name ?? teamName;
+  return { form, stats: computeStats(form, realName) };
 }
