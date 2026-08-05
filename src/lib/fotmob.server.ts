@@ -141,7 +141,9 @@ function computeStats(form: FormItem[], teamName: string): TeamStats {
   let weightTotal = 0;
 
   form.forEach((f, i) => {
-    const [a, b] = f.score.split("-").map((s) => Number(s.trim()));
+    const parts = f.score.split("-").map((s) => Number(s.trim()));
+    const a = parts[0] ?? 0;
+    const b = parts[1] ?? 0;
     const isHome = f.home === teamName;
     const gf = isHome ? a : b;
     const ga = isHome ? b : a;
