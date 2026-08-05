@@ -10,6 +10,8 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as DuelTmpRouteImport } from './routes/duel-tmp'
+import { Route as JarvisRouteImport } from './routes/jarvis'
 import { Route as PredictionsRouteImport } from './routes/predictions'
 import { Route as MatchMatchIdRouteImport } from './routes/match.$matchId'
 import { Route as ApiPublicHooksDailyPredictionsRouteImport } from './routes/api/public/hooks/daily-predictions'
@@ -17,6 +19,16 @@ import { Route as ApiPublicHooksDailyPredictionsRouteImport } from './routes/api
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DuelTmpRoute = DuelTmpRouteImport.update({
+  id: '/duel-tmp',
+  path: '/duel-tmp',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JarvisRoute = JarvisRouteImport.update({
+  id: '/jarvis',
+  path: '/jarvis',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PredictionsRoute = PredictionsRouteImport.update({
@@ -38,12 +50,16 @@ const ApiPublicHooksDailyPredictionsRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/duel-tmp': typeof DuelTmpRoute
+  '/jarvis': typeof JarvisRoute
   '/predictions': typeof PredictionsRoute
   '/match/$matchId': typeof MatchMatchIdRoute
   '/api/public/hooks/daily-predictions': typeof ApiPublicHooksDailyPredictionsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/duel-tmp': typeof DuelTmpRoute
+  '/jarvis': typeof JarvisRoute
   '/predictions': typeof PredictionsRoute
   '/match/$matchId': typeof MatchMatchIdRoute
   '/api/public/hooks/daily-predictions': typeof ApiPublicHooksDailyPredictionsRoute
@@ -51,6 +67,8 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/duel-tmp': typeof DuelTmpRoute
+  '/jarvis': typeof JarvisRoute
   '/predictions': typeof PredictionsRoute
   '/match/$matchId': typeof MatchMatchIdRoute
   '/api/public/hooks/daily-predictions': typeof ApiPublicHooksDailyPredictionsRoute
@@ -59,18 +77,24 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/duel-tmp'
+    | '/jarvis'
     | '/predictions'
     | '/match/$matchId'
     | '/api/public/hooks/daily-predictions'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/duel-tmp'
+    | '/jarvis'
     | '/predictions'
     | '/match/$matchId'
     | '/api/public/hooks/daily-predictions'
   id:
     | '__root__'
     | '/'
+    | '/duel-tmp'
+    | '/jarvis'
     | '/predictions'
     | '/match/$matchId'
     | '/api/public/hooks/daily-predictions'
@@ -78,6 +102,8 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  DuelTmpRoute: typeof DuelTmpRoute
+  JarvisRoute: typeof JarvisRoute
   PredictionsRoute: typeof PredictionsRoute
   MatchMatchIdRoute: typeof MatchMatchIdRoute
   ApiPublicHooksDailyPredictionsRoute: typeof ApiPublicHooksDailyPredictionsRoute
@@ -90,6 +116,20 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/duel-tmp': {
+      id: '/duel-tmp'
+      path: '/duel-tmp'
+      fullPath: '/duel-tmp'
+      preLoaderRoute: typeof DuelTmpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/jarvis': {
+      id: '/jarvis'
+      path: '/jarvis'
+      fullPath: '/jarvis'
+      preLoaderRoute: typeof JarvisRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/predictions': {
@@ -118,6 +158,8 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  DuelTmpRoute: DuelTmpRoute,
+  JarvisRoute: JarvisRoute,
   PredictionsRoute: PredictionsRoute,
   MatchMatchIdRoute: MatchMatchIdRoute,
   ApiPublicHooksDailyPredictionsRoute: ApiPublicHooksDailyPredictionsRoute,

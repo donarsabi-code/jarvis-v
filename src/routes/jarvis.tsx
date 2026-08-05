@@ -56,7 +56,7 @@ function JarvisPage() {
     setInput("");
     setBusy(true);
     try {
-      const res = await send({ data: { messages: next.filter((m) => m.role !== "assistant" || true) } });
+      const res = await send({ data: { messages: next } });
       setMessages([...next, { role: "assistant", content: res.content }]);
     } catch {
       toast.error("JARVIS est momentanément indisponible.");
