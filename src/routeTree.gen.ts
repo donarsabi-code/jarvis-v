@@ -10,33 +10,103 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as DuelTmpRouteImport } from './routes/duel-tmp'
+import { Route as JarvisRouteImport } from './routes/jarvis'
+import { Route as PredictionsRouteImport } from './routes/predictions'
+import { Route as MatchMatchIdRouteImport } from './routes/match.$matchId'
+import { Route as ApiPublicHooksDailyPredictionsRouteImport } from './routes/api/public/hooks/daily-predictions'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DuelTmpRoute = DuelTmpRouteImport.update({
+  id: '/duel-tmp',
+  path: '/duel-tmp',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JarvisRoute = JarvisRouteImport.update({
+  id: '/jarvis',
+  path: '/jarvis',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PredictionsRoute = PredictionsRouteImport.update({
+  id: '/predictions',
+  path: '/predictions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MatchMatchIdRoute = MatchMatchIdRouteImport.update({
+  id: '/match/$matchId',
+  path: '/match/$matchId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicHooksDailyPredictionsRoute =
+  ApiPublicHooksDailyPredictionsRouteImport.update({
+    id: '/api/public/hooks/daily-predictions',
+    path: '/api/public/hooks/daily-predictions',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/duel-tmp': typeof DuelTmpRoute
+  '/jarvis': typeof JarvisRoute
+  '/predictions': typeof PredictionsRoute
+  '/match/$matchId': typeof MatchMatchIdRoute
+  '/api/public/hooks/daily-predictions': typeof ApiPublicHooksDailyPredictionsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/duel-tmp': typeof DuelTmpRoute
+  '/jarvis': typeof JarvisRoute
+  '/predictions': typeof PredictionsRoute
+  '/match/$matchId': typeof MatchMatchIdRoute
+  '/api/public/hooks/daily-predictions': typeof ApiPublicHooksDailyPredictionsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/duel-tmp': typeof DuelTmpRoute
+  '/jarvis': typeof JarvisRoute
+  '/predictions': typeof PredictionsRoute
+  '/match/$matchId': typeof MatchMatchIdRoute
+  '/api/public/hooks/daily-predictions': typeof ApiPublicHooksDailyPredictionsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/duel-tmp'
+    | '/jarvis'
+    | '/predictions'
+    | '/match/$matchId'
+    | '/api/public/hooks/daily-predictions'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/duel-tmp'
+    | '/jarvis'
+    | '/predictions'
+    | '/match/$matchId'
+    | '/api/public/hooks/daily-predictions'
+  id:
+    | '__root__'
+    | '/'
+    | '/duel-tmp'
+    | '/jarvis'
+    | '/predictions'
+    | '/match/$matchId'
+    | '/api/public/hooks/daily-predictions'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  DuelTmpRoute: typeof DuelTmpRoute
+  JarvisRoute: typeof JarvisRoute
+  PredictionsRoute: typeof PredictionsRoute
+  MatchMatchIdRoute: typeof MatchMatchIdRoute
+  ApiPublicHooksDailyPredictionsRoute: typeof ApiPublicHooksDailyPredictionsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,22 +118,52 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/duel-tmp': {
+      id: '/duel-tmp'
+      path: '/duel-tmp'
+      fullPath: '/duel-tmp'
+      preLoaderRoute: typeof DuelTmpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/jarvis': {
+      id: '/jarvis'
+      path: '/jarvis'
+      fullPath: '/jarvis'
+      preLoaderRoute: typeof JarvisRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/predictions': {
+      id: '/predictions'
+      path: '/predictions'
+      fullPath: '/predictions'
+      preLoaderRoute: typeof PredictionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/match/$matchId': {
+      id: '/match/$matchId'
+      path: '/match/$matchId'
+      fullPath: '/match/$matchId'
+      preLoaderRoute: typeof MatchMatchIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/daily-predictions': {
+      id: '/api/public/hooks/daily-predictions'
+      path: '/api/public/hooks/daily-predictions'
+      fullPath: '/api/public/hooks/daily-predictions'
+      preLoaderRoute: typeof ApiPublicHooksDailyPredictionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  DuelTmpRoute: DuelTmpRoute,
+  JarvisRoute: JarvisRoute,
+  PredictionsRoute: PredictionsRoute,
+  MatchMatchIdRoute: MatchMatchIdRoute,
+  ApiPublicHooksDailyPredictionsRoute: ApiPublicHooksDailyPredictionsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
