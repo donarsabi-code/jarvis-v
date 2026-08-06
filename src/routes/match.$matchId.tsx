@@ -198,15 +198,8 @@ function AiSection({ matchId }: { matchId: string }) {
     try {
       const res = await run({ data: matchId });
       setContent(res.content);
-    } catch (e) {
-      const msg = String(e);
-      toast.error(
-        msg.includes("RATE_LIMIT")
-          ? "Trop de requêtes, réessayez dans un instant."
-          : msg.includes("NO_CREDITS")
-            ? "Crédits IA épuisés."
-            : "Analyse indisponible pour le moment.",
-      );
+    } catch {
+      toast.error("Données du match indisponibles pour le moment.");
     } finally {
       setLoading(false);
     }
