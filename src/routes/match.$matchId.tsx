@@ -3,9 +3,8 @@ import { queryOptions, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { getMatchDetail } from "@/lib/football.functions";
 import { getAiMatchAnalysis } from "@/lib/ai.functions";
-import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Bot, CalendarDays, Lock, MapPin, UserCheck } from "lucide-react";
+import { Bot, CalendarDays, MapPin, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 
