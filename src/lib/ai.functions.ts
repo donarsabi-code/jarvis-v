@@ -19,30 +19,11 @@ export const getAiMatchAnalysis = createServerFn({ method: "POST" })
     }
 
     const { fetchMatchDetails } = await import("./fotmob.server");
-    const { askAI, JARVIS_SYSTEM } = await import("./ai.server");
+    const { analyseMatch } = await import("./jarvis-engine.server");
     const detail = await fetchMatchDetails(data);
 
-    let content: string;
-    try {
-      content = await askAI([
-        { role: "system", content: JARVIS_SYSTEM },
-        {
-          role: "user",
-          content:
-            `Rédige l'analyse IA complète de ce match en français (markdown léger, 250 mots max).\n` +
-            `Sections: 1) Lecture TMP des deux équipes 2) Forme & tendances 3) Confrontations directes 4) Score exact prédit + confiance.\n` +
-            `Données: ${JSON.stringify(detail)}`,
-        },
-      ]);
-    } catch (e) {
-      const msg = String(e);
-      if (msg.includes("NO_CREDITS") || msg.includes("RATE_LIMIT")) {
-        const { localTmpAnalysis } = await import("./tmp-fallback.server");
-        // Pas de mise en cache: c'est une réponse dégradée.
-        return { content: localTmpAnalysis(detail), degraded: true as const };
-      }
-      throw e;
-    }
+    // Moteur JARVIS local: gratuit, illimité, aucun crédit consommé.
+    const content = analyseMatch(detail).analysis;
 
     await supabaseAdmin
       .from("ai_analyses")
@@ -61,41 +42,33 @@ export const getTmpDuel = createServerFn({ method: "POST" })
   })
   .handler(async ({ data }) => {
     const { searchTeam, fetchTeamForm, teamLogo } = await import("./fotmob.server");
-    const { askAIJson, JARVIS_SYSTEM } = await import("./ai.server");
+    const { analyseDuel } = await import("./jarvis-engine.server");
 
     const [h, a] = await Promise.all([searchTeam(data.home), searchTeam(data.away)]);
+    if (!h || !a) {
+      throw new Error(
+        `Équipe introuvable: ${!h ? data.home : data.away}. Vérifiez l'orthographe du club.`,
+      );
+    }
     const [hf, af] = await Promise.all([
-      h ? fetchTeamForm(h.id, h.name).catch(() => null) : null,
-      a ? fetchTeamForm(a.id, a.name).catch(() => null) : null,
+      fetchTeamForm(h.id, h.name).catch(() => null),
+      fetchTeamForm(a.id, a.name).catch(() => null),
     ]);
+    if (!hf || !af) throw new Error("Données de forme indisponibles pour l'une des équipes.");
 
-    const result = await askAIJson<{
-      tmpHome: number;
-      tmpAway: number;
-      home: number;
-      away: number;
-      confidence: number;
-      analysis: string;
-    }>([
-      { role: "system", content: JARVIS_SYSTEM },
-      {
-        role: "user",
-        content:
-          `Duel TMP demandé: ${h?.name ?? data.home} (domicile) contre ${a?.name ?? data.away} (extérieur).\n` +
-          `Données de forme récupérées: ${JSON.stringify({ domicile: hf, exterieur: af })}\n` +
-          `Calcule le TMP (0-100) de chaque équipe selon la méthodologie Betclan, puis donne le SCORE EXACT.\n` +
-          `JSON strict: {"tmpHome":number,"tmpAway":number,"home":number,"away":number,"confidence":number,"analysis":"analyse en français, 180 mots max, style JARVIS, avec la lecture TMP chiffrée"}`,
-      },
-    ]);
+    const result = analyseDuel(
+      { name: h.name, stats: hf.stats, form: hf.form },
+      { name: a.name, stats: af.stats, form: af.form },
+    );
 
     return {
       ...result,
-      homeName: h?.name ?? data.home,
-      awayName: a?.name ?? data.away,
-      homeLogo: h ? teamLogo(h.id) : null,
-      awayLogo: a ? teamLogo(a.id) : null,
-      homeForm: hf?.form ?? [],
-      awayForm: af?.form ?? [],
+      homeName: h.name,
+      awayName: a.name,
+      homeLogo: teamLogo(h.id),
+      awayLogo: teamLogo(a.id),
+      homeForm: hf.form,
+      awayForm: af.form,
     };
   });
 
@@ -106,15 +79,9 @@ export const jarvisChat = createServerFn({ method: "POST" })
     return { messages: input.messages.slice(-12) };
   })
   .handler(async ({ data }) => {
-    const { askAI, JARVIS_SYSTEM } = await import("./ai.server");
-    const today = new Date().toISOString().slice(0, 10);
-    const content = await askAI([
-      {
-        role: "system",
-        content: `${JARVIS_SYSTEM}\nNous sommes le ${today}. Réponses courtes et utiles (150 mots max) sauf demande contraire.`,
-      },
-      ...data.messages,
-    ]);
+    const { jarvisLocalReply } = await import("./jarvis-chat.server");
+    const last = [...data.messages].reverse().find((m) => m.role === "user");
+    const content = await jarvisLocalReply(last?.content ?? "");
     return { content };
   });
 
