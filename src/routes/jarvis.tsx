@@ -2,7 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { jarvisChat } from "@/lib/ai.functions";
-import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Bot, Send } from "lucide-react";
@@ -36,7 +35,6 @@ export const Route = createFileRoute("/jarvis")({
 });
 
 function JarvisPage() {
-  const { user, openAuth } = useAuth();
   const send = useServerFn(jarvisChat);
   const [messages, setMessages] = useState<Msg[]>([
     {
@@ -50,7 +48,6 @@ function JarvisPage() {
   const endRef = useRef<HTMLDivElement>(null);
 
   const ask = async (text: string) => {
-    if (!user) return openAuth();
     const next: Msg[] = [...messages, { role: "user", content: text }];
     setMessages(next);
     setInput("");
