@@ -15,7 +15,7 @@ export const getAiMatchAnalysis = createServerFn({ method: "POST" })
       .maybeSingle();
 
     if (cached.data && Date.now() - new Date(cached.data.created_at).getTime() < 6 * 3600_000) {
-      return { content: cached.data.content };
+      return { content: cached.data.content, degraded: false as const };
     }
 
     const { fetchMatchDetails } = await import("./fotmob.server");
