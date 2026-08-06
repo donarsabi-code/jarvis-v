@@ -1,5 +1,5 @@
-import { askAIJson, JARVIS_SYSTEM } from "./ai.server";
 import { fetchMatchDetails, fetchMatchesByDate, teamLogo } from "./fotmob.server";
+import { analyseMatch } from "./jarvis-engine.server";
 
 const PRIORITY = [
   "Premier League",
@@ -58,38 +58,7 @@ export async function generateDailyPredictions(isoDate: string): Promise<Generat
   for (const c of candidates) {
     try {
       const detail = await fetchMatchDetails(c.match.id);
-      const payload = {
-        competition: detail.league,
-        stade: detail.stadium,
-        domicile: detail.home.name,
-        exterieur: detail.away.name,
-        tmp: { domicile: detail.stats.home.tmp, exterieur: detail.stats.away.tmp },
-        forme: {
-          domicile: detail.form.home.map((f) => `${f.result} ${f.score}`),
-          exterieur: detail.form.away.map((f) => `${f.result} ${f.score}`),
-        },
-        moyennes: {
-          domicile: detail.stats.home,
-          exterieur: detail.stats.away,
-        },
-        h2h: detail.h2h,
-      };
-
-      const res = await askAIJson<{
-        home: number;
-        away: number;
-        confidence: number;
-        reasoning: string;
-      }>([
-        { role: "system", content: JARVIS_SYSTEM },
-        {
-          role: "user",
-          content:
-            `Analyse ce match via la méthode TMP et donne un SCORE EXACT.\n` +
-            `Données: ${JSON.stringify(payload)}\n\n` +
-            `Réponds en JSON strict: {"home": number, "away": number, "confidence": number (0-100), "reasoning": "3 phrases maximum en français, chiffrées, style JARVIS"}`,
-        },
-      ]);
+      const res = analyseMatch(detail);
 
       out.push({
         match_date: isoDate,
@@ -103,8 +72,8 @@ export async function generateDailyPredictions(isoDate: string): Promise<Generat
         predicted_home: Math.max(0, Math.round(res.home)),
         predicted_away: Math.max(0, Math.round(res.away)),
         confidence: Math.max(0, Math.min(100, Math.round(res.confidence))),
-        tmp_home: detail.stats.home.tmp,
-        tmp_away: detail.stats.away.tmp,
+        tmp_home: res.tmpHome,
+        tmp_away: res.tmpAway,
         reasoning: res.reasoning,
       });
     } catch (e) {
