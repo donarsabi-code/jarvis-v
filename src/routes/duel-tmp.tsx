@@ -38,7 +38,10 @@ function DuelPage() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!home.trim() || !away.trim()) return toast.error("Indiquez les deux équipes.");
+    if (!home.trim() || !away.trim()) {
+      toast.error("Indiquez les deux équipes.");
+      return;
+    }
     setBusy(true);
     try {
       setResult(await run({ data: { home, away } }));
