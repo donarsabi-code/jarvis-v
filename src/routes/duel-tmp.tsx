@@ -2,7 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { getTmpDuel } from "@/lib/ai.functions";
-import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,7 +30,6 @@ export const Route = createFileRoute("/duel-tmp")({
 type Result = Awaited<ReturnType<typeof getTmpDuel>>;
 
 function DuelPage() {
-  const { user, openAuth } = useAuth();
   const run = useServerFn(getTmpDuel);
   const [home, setHome] = useState("");
   const [away, setAway] = useState("");
@@ -40,8 +38,10 @@ function DuelPage() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return openAuth();
-    if (!home.trim() || !away.trim()) return toast.error("Indiquez les deux équipes.");
+    if (!home.trim() || !away.trim()) {
+      toast.error("Indiquez les deux équipes.");
+      return;
+    }
     setBusy(true);
     try {
       setResult(await run({ data: { home, away } }));
@@ -60,7 +60,7 @@ function DuelPage() {
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Donnez simplement deux noms d'équipes. JARVIS récupère leur forme, calcule leur Team Momentum
-          Performance ranking et en déduit le score exact.
+          Performance ranking et en déduit le score exact. Gratuit et illimité, sans inscription.
         </p>
 
         <form onSubmit={submit} className="mt-5 grid gap-3 sm:grid-cols-[1fr_1fr_auto]">

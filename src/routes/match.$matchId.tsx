@@ -3,9 +3,8 @@ import { queryOptions, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { getMatchDetail } from "@/lib/football.functions";
 import { getAiMatchAnalysis } from "@/lib/ai.functions";
-import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Bot, CalendarDays, Lock, MapPin, UserCheck } from "lucide-react";
+import { Bot, CalendarDays, MapPin, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 
@@ -190,7 +189,6 @@ function FormCard({
 }
 
 function AiSection({ matchId }: { matchId: string }) {
-  const { user, openAuth } = useAuth();
   const run = useServerFn(getAiMatchAnalysis);
   const [content, setContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -219,17 +217,11 @@ function AiSection({ matchId }: { matchId: string }) {
       <h2 className="flex items-center gap-2 text-sm font-semibold">
         <Bot className="size-4 text-primary" /> Analyse IA 🤖
       </h2>
-      <p className="mt-1 text-xs text-muted-foreground">Forme, H2H, stats, blessés et tendances</p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Forme, H2H, stats, blessés et tendances — gratuit et illimité, sans inscription
+      </p>
 
-      {!user ? (
-        <div className="mt-4 rounded-lg border border-dashed border-border bg-secondary/40 p-5 text-center">
-          <Lock className="mx-auto mb-2 size-5 text-accent" />
-          <p className="text-sm font-medium">Accès 100 % gratuit après inscription</p>
-          <Button className="mt-3 font-semibold" onClick={openAuth}>
-            Continue with Google
-          </Button>
-        </div>
-      ) : content ? (
+      {content ? (
         <div className="mt-4 whitespace-pre-wrap text-sm leading-relaxed">{content}</div>
       ) : (
         <Button className="mt-4" onClick={() => void analyse()} disabled={loading}>

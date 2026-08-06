@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { getDailyPredictions } from "@/lib/football.functions";
 import { runPredictionEngine } from "@/lib/ai.functions";
-import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Sparkles, Target } from "lucide-react";
 import { toast } from "sonner";
@@ -40,13 +39,11 @@ export const Route = createFileRoute("/predictions")({
 function PredictionsPage() {
   const iso = todayIso();
   const { data } = useQuery(predictionsQuery(iso));
-  const { user, openAuth } = useAuth();
   const qc = useQueryClient();
   const run = useServerFn(runPredictionEngine);
   const [busy, setBusy] = useState(false);
 
   const generate = async () => {
-    if (!user) return openAuth();
     setBusy(true);
     try {
       await run({ data: iso });

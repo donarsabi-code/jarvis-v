@@ -1,9 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-/** Locked AI match analysis — requires an account (free after sign-up). */
+/** AI match analysis — gratuite et illimitée, sans compte. */
 export const getAiMatchAnalysis = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .inputValidator((matchId: string) => {
     if (!/^\d+$/.test(matchId)) throw new Error("Invalid match id");
     return matchId;
@@ -42,16 +40,15 @@ export const getAiMatchAnalysis = createServerFn({ method: "POST" })
     return { content };
   });
 
-/** TMP duel: the user gives two team names, JARVIS returns an exact score. */
+/** TMP duel: gratuit et illimité. */
 export const getTmpDuel = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .inputValidator((input: { home: string; away: string }) => {
     const home = input.home?.trim();
     const away = input.away?.trim();
     if (!home || !away) throw new Error("Deux équipes sont requises");
     return { home: home.slice(0, 60), away: away.slice(0, 60) };
   })
-  .handler(async ({ data, context }) => {
+  .handler(async ({ data }) => {
     const { searchTeam, fetchTeamForm, teamLogo } = await import("./fotmob.server");
     const { askAIJson, JARVIS_SYSTEM } = await import("./ai.server");
 
@@ -80,18 +77,6 @@ export const getTmpDuel = createServerFn({ method: "POST" })
       },
     ]);
 
-    await context.supabase.from("tmp_analyses").insert({
-      user_id: context.userId,
-      home_team: h?.name ?? data.home,
-      away_team: a?.name ?? data.away,
-      tmp_home: result.tmpHome,
-      tmp_away: result.tmpAway,
-      predicted_home: result.home,
-      predicted_away: result.away,
-      confidence: result.confidence,
-      content: result.analysis,
-    });
-
     return {
       ...result,
       homeName: h?.name ?? data.home,
@@ -103,9 +88,8 @@ export const getTmpDuel = createServerFn({ method: "POST" })
     };
   });
 
-/** Free conversation with JARVIS. */
+/** Free conversation with JARVIS — sans compte. */
 export const jarvisChat = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .inputValidator((input: { messages: Array<{ role: "user" | "assistant"; content: string }> }) => {
     if (!Array.isArray(input.messages) || input.messages.length === 0) throw new Error("Message requis");
     return { messages: input.messages.slice(-12) };
@@ -123,9 +107,8 @@ export const jarvisChat = createServerFn({ method: "POST" })
     return { content };
   });
 
-/** Manually trigger the daily prediction engine (signed-in users). */
+/** Manually trigger the daily prediction engine — accès libre. */
 export const runPredictionEngine = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .inputValidator((isoDate: string) => isoDate)
   .handler(async ({ data }) => {
     const { generateDailyPredictions } = await import("./predictions.server");
