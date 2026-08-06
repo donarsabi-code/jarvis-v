@@ -36,7 +36,7 @@ async function todayReply(): Promise<string> {
     .slice(0, 8)
     .map(
       (r) =>
-        `• ${r.m.home.name} – ${r.m.away.name} (${r.league}${r.m.utcTime ? `, ${r.m.utcTime.slice(11, 16)} UTC` : ""})`,
+        `• ${r.m.home} – ${r.m.away} (${r.league}${r.m.utcTime ? `, ${r.m.utcTime.slice(11, 16)} UTC` : ""})`,
     );
   if (!rows.length) return `Monsieur, aucun match exploitable n'est remonté pour le ${iso}.`;
   return [
