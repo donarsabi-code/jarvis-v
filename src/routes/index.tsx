@@ -21,9 +21,10 @@ const matchesQuery = (iso: string) =>
   });
 
 export const Route = createFileRoute("/")({
-  validateSearch: (search: Record<string, unknown>) => ({
-    d: typeof search['d'] === "string" && /^\d{4}-\d{2}-\d{2}$/.test(search['d']) ? search['d'] : undefined,
-  }),
+  validateSearch: (search: Record<string, unknown>): { d?: string } => {
+    const d = search['d'];
+    return typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d) ? { d } : {};
+  },
   loaderDeps: ({ search }) => ({ d: search.d }),
   loader: ({ context, deps }) => context.queryClient.ensureQueryData(matchesQuery(deps.d ?? todayIso())),
   head: () => ({
