@@ -244,7 +244,7 @@ export async function searchTeam(
   const opt = json?.teamSuggest?.[0]?.options?.[0];
   if (!opt?.payload?.id) return null;
   const id = Number(opt.payload.id);
-  return { id, name: opt.text ?? name, logo: teamLogo(id) };
+  return { id, name: String(opt.text ?? name).split("|")[0]!.trim(), logo: teamLogo(id) };
 }
 
 /** Recent form + TMP momentum score for a single team. */
