@@ -15,29 +15,40 @@ export const getAiMatchAnalysis = createServerFn({ method: "POST" })
       .maybeSingle();
 
     if (cached.data && Date.now() - new Date(cached.data.created_at).getTime() < 6 * 3600_000) {
-      return { content: cached.data.content };
+      return { content: cached.data.content, degraded: false as const };
     }
 
     const { fetchMatchDetails } = await import("./fotmob.server");
     const { askAI, JARVIS_SYSTEM } = await import("./ai.server");
     const detail = await fetchMatchDetails(data);
 
-    const content = await askAI([
-      { role: "system", content: JARVIS_SYSTEM },
-      {
-        role: "user",
-        content:
-          `Rédige l'analyse IA complète de ce match en français (markdown léger, 250 mots max).\n` +
-          `Sections: 1) Lecture TMP des deux équipes 2) Forme & tendances 3) Confrontations directes 4) Score exact prédit + confiance.\n` +
-          `Données: ${JSON.stringify(detail)}`,
-      },
-    ]);
+    let content: string;
+    try {
+      content = await askAI([
+        { role: "system", content: JARVIS_SYSTEM },
+        {
+          role: "user",
+          content:
+            `Rédige l'analyse IA complète de ce match en français (markdown léger, 250 mots max).\n` +
+            `Sections: 1) Lecture TMP des deux équipes 2) Forme & tendances 3) Confrontations directes 4) Score exact prédit + confiance.\n` +
+            `Données: ${JSON.stringify(detail)}`,
+        },
+      ]);
+    } catch (e) {
+      const msg = String(e);
+      if (msg.includes("NO_CREDITS") || msg.includes("RATE_LIMIT")) {
+        const { localTmpAnalysis } = await import("./tmp-fallback.server");
+        // Pas de mise en cache: c'est une réponse dégradée.
+        return { content: localTmpAnalysis(detail), degraded: true as const };
+      }
+      throw e;
+    }
 
     await supabaseAdmin
       .from("ai_analyses")
       .upsert({ match_id: data, content, created_at: new Date().toISOString() }, { onConflict: "match_id" });
 
-    return { content };
+    return { content, degraded: false as const };
   });
 
 /** TMP duel: gratuit et illimité. */
