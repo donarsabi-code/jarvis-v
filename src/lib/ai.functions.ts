@@ -92,3 +92,36 @@ export const runPredictionEngine = createServerFn({ method: "POST" })
     const { generateDailyPredictions } = await import("./predictions.server");
     return { predictions: await generateDailyPredictions(data) };
   });
+
+/**
+ * Rédaction IA (payante / limitée). Le calcul TMP reste gratuit et illimité :
+ * cette fonction n'ajoute QUE le texte rédigé par le LLM et échoue proprement
+ * quand les crédits sont épuisés.
+ */
+export const getAiNarrative = createServerFn({ method: "POST" })
+  .inputValidator((input: { title: string; facts: string }) => {
+    const title = input.title?.trim();
+    const facts = input.facts?.trim();
+    if (!title || !facts) throw new Error("Contexte manquant");
+    return { title: title.slice(0, 120), facts: facts.slice(0, 4000) };
+  })
+  .handler(async ({ data }) => {
+    const { askAI, JARVIS_SYSTEM } = await import("./ai.server");
+    try {
+      const text = await askAI([
+        { role: "system", content: JARVIS_SYSTEM },
+        {
+          role: "user",
+          content: `Rencontre : ${data.title}\n\nDonnées TMP déjà calculées (ne les contredis pas, ne change pas le score exact) :\n${data.facts}\n\nRédige en français, style JARVIS, 5 à 8 phrases : lecture de la dynamique, points de bascule, risques, et confirmation du score exact retenu.`,
+        },
+      ]);
+      return { ok: true as const, text };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "ERROR";
+      const reason =
+        msg === "NO_CREDITS" ? ("NO_CREDITS" as const)
+        : msg === "RATE_LIMIT" ? ("RATE_LIMIT" as const)
+        : ("ERROR" as const);
+      return { ok: false as const, reason };
+    }
+  });
