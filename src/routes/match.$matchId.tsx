@@ -67,7 +67,7 @@ function MatchPage() {
               </p>
             ) : (
               <p className="text-2xl font-bold tabular-nums">
-                {kickoff?.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) ?? "--:--"}
+                {kickoff?.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" }) ?? "--:--"}
               </p>
             )}
             <p className="text-xs text-muted-foreground">
@@ -78,7 +78,7 @@ function MatchPage() {
         </div>
 
         <div className="mt-5 grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
-          <Info icon={<CalendarDays className="size-3.5" />} text={kickoff?.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) ?? "—"} />
+          <Info icon={<CalendarDays className="size-3.5" />} text={kickoff?.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Paris" }) ?? "—"} />
           <Info icon={<MapPin className="size-3.5" />} text={data.stadium ? `${data.stadium}${data.city ? `, ${data.city}` : ""}` : "Stade non communiqué"} />
           <Info icon={<UserCheck className="size-3.5" />} text={data.referee ? `Arbitre : ${data.referee}` : "Arbitre non communiqué"} />
         </div>
@@ -99,7 +99,7 @@ function MatchPage() {
           {data.h2h.matches.map((m, i) => (
             <li key={i} className="flex items-center gap-2 border-b border-border/50 pb-1.5 last:border-0">
               <span className="w-20 shrink-0 text-xs text-muted-foreground">
-                {m.date ? new Date(m.date).toLocaleDateString("fr-FR", { month: "2-digit", year: "2-digit" }) : ""}
+                {m.date ? new Date(m.date).toLocaleDateString("fr-FR", { month: "2-digit", year: "2-digit", timeZone: "Europe/Paris" }) : ""}
               </span>
               <span className="min-w-0 flex-1 truncate">{m.home}</span>
               <span className="font-semibold tabular-nums">{m.score}</span>

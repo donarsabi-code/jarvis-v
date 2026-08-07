@@ -51,6 +51,7 @@ function Index() {
   const { data, isFetching } = useQuery(matchesQuery(iso));
 
   const label = new Date(`${iso}T12:00:00Z`).toLocaleDateString("fr-FR", {
+    timeZone: "Europe/Paris",
     weekday: "long",
     day: "numeric",
     month: "long",
