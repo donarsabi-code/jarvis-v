@@ -14,7 +14,6 @@ export type EngineOutput = {
   probs: { home: number; draw: number; away: number };
   bothScore: number;
   over25: number;
-  alternatives: Array<{ score: string; prob: number }>;
   analysis: string;
   reasoning: string;
 };
@@ -107,10 +106,7 @@ export function analyseDuel(
 
   const grid = buildGrid(lh, la);
   const best = grid[0]!;
-  const alternatives = grid.slice(0, 4).map((g) => ({
-    score: `${g.h}-${g.a}`,
-    prob: Math.round(g.p * 1000) / 10,
-  }));
+  const bestProb = Math.round(best.p * 1000) / 10;
 
   let pH = 0;
   let pD = 0;
@@ -161,8 +157,7 @@ export function analyseDuel(
     ``,
     `**4) Projection** — espérance de buts ${lh.toFixed(2)} contre ${la.toFixed(2)}. Probabilités : ${home.name} ${probs.home} % · nul ${probs.draw} % · ${away.name} ${probs.away} %. Les deux marquent : ${Math.round(bts * 100)} %. Plus de 2,5 buts : ${Math.round(over * 100)} %.`,
     ``,
-    `**Score exact retenu : ${home.name} ${best.h} - ${best.a} ${away.name}** · confiance ${confidence} %.`,
-    `Scénarios alternatifs : ${alternatives.slice(1).map((s) => `${s.score} (${s.prob} %)`).join(", ")}.`,
+    `**Score exact retenu : ${home.name} ${best.h} - ${best.a} ${away.name}** · probabilité ${bestProb} % · confiance ${confidence} %. Une seule projection est retenue : c'est celle-là, Monsieur.`,
   ].join("\n");
 
   const reasoning =
@@ -179,7 +174,6 @@ export function analyseDuel(
     probs,
     bothScore: Math.round(bts * 100),
     over25: Math.round(over * 100),
-    alternatives,
     analysis,
     reasoning,
   };
