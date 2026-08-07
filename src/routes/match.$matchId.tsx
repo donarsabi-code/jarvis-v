@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Bot, CalendarDays, MapPin, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
+import { AiNarrative } from "@/components/AiNarrative";
 
 const logo = (id: number) => `https://images.fotmob.com/image_resources/logo/teamlogo/${id}.png`;
 
@@ -108,7 +109,7 @@ function MatchPage() {
         </ul>
       </section>
 
-      <AiSection matchId={matchId} />
+      <AiSection matchId={matchId} title={`${data.home.name} - ${data.away.name}`} />
     </main>
   );
 }
@@ -188,7 +189,7 @@ function FormCard({
   );
 }
 
-function AiSection({ matchId }: { matchId: string }) {
+function AiSection({ matchId, title }: { matchId: string; title: string }) {
   const run = useServerFn(getAiMatchAnalysis);
   const [content, setContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -215,7 +216,10 @@ function AiSection({ matchId }: { matchId: string }) {
       </p>
 
       {content ? (
-        <div className="mt-4 whitespace-pre-wrap text-sm leading-relaxed">{content}</div>
+        <>
+          <div className="mt-4 whitespace-pre-wrap text-sm leading-relaxed">{content}</div>
+          <AiNarrative title={title} facts={content} />
+        </>
       ) : (
         <Button className="mt-4" onClick={() => void analyse()} disabled={loading}>
           {loading ? "JARVIS analyse…" : "Lancer l'analyse TMP"}
