@@ -20,7 +20,7 @@ const logo = (id: number) =>
 
 export function MatchRow({ match }: { match: RowMatch }) {
   const time = match.utcTime
-    ? new Date(match.utcTime).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+    ? new Date(match.utcTime).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" })
     : "--:--";
   const live = match.started && !match.finished && !match.cancelled;
 
