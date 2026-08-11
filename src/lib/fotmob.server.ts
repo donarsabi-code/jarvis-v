@@ -190,20 +190,37 @@ function parseLiveStats(raw: Record<string, any>): LiveStats | null {
   };
 }
 
-function parseStandings(raw: Record<string, any>, homeId: number, awayId: number) {
-  const t = raw['content']?.table?.all?.[0]?.data ?? raw['content']?.table?.all?.[0];
-  const rows: any[] = t?.table?.all ?? t?.tables?.[0]?.table?.all ?? t?.all ?? [];
-  const pick = (id: number): TableRow | null => {
-    const r = rows.find((x: any) => Number(x?.id) === id);
-    if (!r) return null;
-    return {
-      position: Number(r.idx ?? r.position ?? 0),
-      points: Number(r.pts ?? r.points ?? 0),
-      played: Number(r.played ?? 0),
-      goalDiff: Number(r.goalConDiff ?? r.gd ?? 0),
+async function fetchStandings(
+  raw: Record<string, any>,
+  homeId: number,
+  awayId: number,
+): Promise<{ home: TableRow | null; away: TableRow | null; teams: number }> {
+  const url: string | undefined = raw['content']?.table?.url;
+  if (!url) return { home: null, away: null, teams: 0 };
+  try {
+    const res = await fetch(url, { headers: { "User-Agent": UA } });
+    if (!res.ok) return { home: null, away: null, teams: 0 };
+    const xml = await res.text();
+    const rows = [...xml.matchAll(/<t\s([^>]*)\/>/g)].map((m, i) => {
+      const attrs: Record<string, string> = {};
+      for (const a of m[1]!.matchAll(/(\w+)="([^"]*)"/g)) attrs[a[1]!] = a[2]!;
+      return {
+        id: Number(attrs['id'] ?? 0),
+        position: i + 1,
+        points: Number(attrs['p'] ?? 0),
+        played:
+          Number(attrs['w'] ?? 0) + Number(attrs['d'] ?? 0) + Number(attrs['l'] ?? 0),
+        goalDiff: Number(attrs['g'] ?? 0) - Number(attrs['c'] ?? 0),
+      };
+    });
+    const pick = (id: number): TableRow | null => {
+      const r = rows.find((x) => x.id === id);
+      return r ? { position: r.position, points: r.points, played: r.played, goalDiff: r.goalDiff } : null;
     };
-  };
-  return { home: pick(homeId), away: pick(awayId), teams: rows.length };
+    return { home: pick(homeId), away: pick(awayId), teams: rows.length };
+  } catch {
+    return { home: null, away: null, teams: 0 };
+  }
 }
 
 type RawForm = Array<{
@@ -324,7 +341,7 @@ export async function fetchMatchDetails(matchId: string): Promise<MatchDetail> {
       halftime,
     },
     liveStats: g.started ? parseLiveStats(raw) : null,
-    standings: parseStandings(raw, homeId, awayId),
+    standings: await fetchStandings(raw, homeId, awayId),
   };
 }
 
