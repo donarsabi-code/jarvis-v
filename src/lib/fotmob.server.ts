@@ -118,7 +118,93 @@ export type MatchDetail = {
   form: { home: FormItem[]; away: FormItem[] };
   stats: { home: TeamStats; away: TeamStats };
   h2h: { summary: [number, number, number]; matches: FormItem[] };
+  /** État live : minute réelle du match en cours. */
+  live: { minute: number | null; ongoing: boolean; statusText: string | null; halftime: boolean };
+  /** Statistiques en direct (null avant le coup d'envoi). */
+  liveStats: LiveStats | null;
+  /** Contexte de championnat : place au classement, points, nb d'équipes. */
+  standings: {
+    home: TableRow | null;
+    away: TableRow | null;
+    teams: number;
+  };
 };
+
+export type LiveStats = {
+  possession: [number, number];
+  shots: [number, number];
+  onTarget: [number, number];
+  xg: [number, number];
+  corners: [number, number];
+  bigChances: [number, number];
+  reds: [number, number];
+};
+
+export type TableRow = { position: number; points: number; played: number; goalDiff: number };
+
+function parseMinute(raw: Record<string, any>): { minute: number | null; halftime: boolean; statusText: string | null } {
+  const status = raw['header']?.status ?? raw['general']?.status ?? {};
+  const short: string | undefined = status?.liveTime?.short ?? status?.liveTime?.long;
+  const text: string | null = status?.reason?.long ?? status?.reason?.short ?? short ?? null;
+  const halftime = typeof text === "string" && /half.?time|mi-temps|HT/i.test(text);
+  if (typeof short === "string") {
+    const m = short.match(/(\d+)/);
+    if (m) return { minute: Number(m[1]), halftime, statusText: text };
+  }
+  if (halftime) return { minute: 45, halftime, statusText: text };
+  return { minute: null, halftime, statusText: text };
+}
+
+function statPair(raw: Record<string, any>, matcher: RegExp): [number, number] | null {
+  const periods = raw['content']?.stats?.Periods ?? raw['content']?.stats?.periods;
+  const all = periods?.All ?? periods?.all;
+  const groups: any[] = all?.stats ?? [];
+  for (const g of groups) {
+    for (const s of g?.stats ?? []) {
+      const key = String(s?.title ?? s?.key ?? "");
+      if (!matcher.test(key)) continue;
+      const v = s?.stats ?? s?.value;
+      if (!Array.isArray(v)) continue;
+      const n = v.map((x: any) => {
+        const num = Number(String(x ?? 0).replace(/[^\d.]/g, ""));
+        return Number.isFinite(num) ? num : 0;
+      });
+      return [n[0] ?? 0, n[1] ?? 0];
+    }
+  }
+  return null;
+}
+
+function parseLiveStats(raw: Record<string, any>): LiveStats | null {
+  const possession = statPair(raw, /possession/i);
+  const shots = statPair(raw, /total shots|tirs/i);
+  if (!possession && !shots) return null;
+  return {
+    possession: possession ?? [50, 50],
+    shots: shots ?? [0, 0],
+    onTarget: statPair(raw, /on target|cadr/i) ?? [0, 0],
+    xg: statPair(raw, /expected goals|xG/i) ?? [0, 0],
+    corners: statPair(raw, /corner/i) ?? [0, 0],
+    bigChances: statPair(raw, /big chance/i) ?? [0, 0],
+    reds: statPair(raw, /red card/i) ?? [0, 0],
+  };
+}
+
+function parseStandings(raw: Record<string, any>, homeId: number, awayId: number) {
+  const t = raw['content']?.table?.all?.[0]?.data ?? raw['content']?.table?.all?.[0];
+  const rows: any[] = t?.table?.all ?? t?.tables?.[0]?.table?.all ?? t?.all ?? [];
+  const pick = (id: number): TableRow | null => {
+    const r = rows.find((x: any) => Number(x?.id) === id);
+    if (!r) return null;
+    return {
+      position: Number(r.idx ?? r.position ?? 0),
+      points: Number(r.pts ?? r.points ?? 0),
+      played: Number(r.played ?? 0),
+      goalDiff: Number(r.goalConDiff ?? r.gd ?? 0),
+    };
+  };
+  return { home: pick(homeId), away: pick(awayId), teams: rows.length };
+}
 
 type RawForm = Array<{
   resultString?: string;
@@ -199,6 +285,9 @@ export async function fetchMatchDetails(matchId: string): Promise<MatchDetail> {
   const homeForm = mapForm(teamForm[0] ?? []);
   const awayForm = mapForm(teamForm[1] ?? []);
   const h2hRaw = raw['content']?.h2h ?? {};
+  const homeId = g.homeTeam?.id ?? 0;
+  const awayId = g.awayTeam?.id ?? 0;
+  const { minute, halftime, statusText } = parseMinute(raw);
 
   return {
     matchId: String(g.matchId ?? matchId),
@@ -228,6 +317,14 @@ export async function fetchMatchDetails(matchId: string): Promise<MatchDetail> {
         date: m.status?.utcTime ?? null,
       })),
     },
+    live: {
+      minute,
+      ongoing: !!g.started && !g.finished,
+      statusText,
+      halftime,
+    },
+    liveStats: g.started ? parseLiveStats(raw) : null,
+    standings: parseStandings(raw, homeId, awayId),
   };
 }
 
