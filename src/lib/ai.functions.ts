@@ -14,22 +14,35 @@ export const getAiMatchAnalysis = createServerFn({ method: "POST" })
       .eq("match_id", data)
       .maybeSingle();
 
-    if (cached.data && Date.now() - new Date(cached.data.created_at).getTime() < 6 * 3600_000) {
-      return { content: cached.data.content, degraded: false as const };
+    const { fetchMatchDetails } = await import("./fotmob.server");
+    const { analyseLiveMatch, checkLiveGate } = await import("./jarvis-live.server");
+    const detail = await fetchMatchDetails(data);
+    const gate = checkLiveGate(detail);
+
+    if (!gate.ready) {
+      // Avant la 15e minute : aucune prédiction figée, l'analyse reste en correction.
+      return {
+        content: null,
+        locked: true as const,
+        minute: gate.minute,
+        message: gate.message,
+        degraded: false as const,
+      };
     }
 
-    const { fetchMatchDetails } = await import("./fotmob.server");
-    const { analyseMatch } = await import("./jarvis-engine.server");
-    const detail = await fetchMatchDetails(data);
+    // Une fois verrouillée à la 15e, l'analyse ne change plus jamais.
+    if (cached.data) {
+      return { content: cached.data.content, locked: false as const, minute: gate.minute, message: null, degraded: false as const };
+    }
 
     // Moteur JARVIS local: gratuit, illimité, aucun crédit consommé.
-    const content = analyseMatch(detail).analysis;
+    const content = analyseLiveMatch(detail).analysis;
 
     await supabaseAdmin
       .from("ai_analyses")
       .upsert({ match_id: data, content, created_at: new Date().toISOString() }, { onConflict: "match_id" });
 
-    return { content, degraded: false as const };
+    return { content, locked: false as const, minute: gate.minute, message: null, degraded: false as const };
   });
 
 /** TMP duel: gratuit et illimité. */

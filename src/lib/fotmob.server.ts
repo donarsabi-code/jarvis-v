@@ -118,7 +118,110 @@ export type MatchDetail = {
   form: { home: FormItem[]; away: FormItem[] };
   stats: { home: TeamStats; away: TeamStats };
   h2h: { summary: [number, number, number]; matches: FormItem[] };
+  /** État live : minute réelle du match en cours. */
+  live: { minute: number | null; ongoing: boolean; statusText: string | null; halftime: boolean };
+  /** Statistiques en direct (null avant le coup d'envoi). */
+  liveStats: LiveStats | null;
+  /** Contexte de championnat : place au classement, points, nb d'équipes. */
+  standings: {
+    home: TableRow | null;
+    away: TableRow | null;
+    teams: number;
+  };
 };
+
+export type LiveStats = {
+  possession: [number, number];
+  shots: [number, number];
+  onTarget: [number, number];
+  xg: [number, number];
+  corners: [number, number];
+  bigChances: [number, number];
+  reds: [number, number];
+};
+
+export type TableRow = { position: number; points: number; played: number; goalDiff: number };
+
+function parseMinute(raw: Record<string, any>): { minute: number | null; halftime: boolean; statusText: string | null } {
+  const status = raw['header']?.status ?? raw['general']?.status ?? {};
+  const short: string | undefined = status?.liveTime?.short ?? status?.liveTime?.long;
+  const text: string | null = status?.reason?.long ?? status?.reason?.short ?? short ?? null;
+  const halftime = typeof text === "string" && /half.?time|mi-temps|HT/i.test(text);
+  if (typeof short === "string") {
+    const m = short.match(/(\d+)/);
+    if (m) return { minute: Number(m[1]), halftime, statusText: text };
+  }
+  if (halftime) return { minute: 45, halftime, statusText: text };
+  return { minute: null, halftime, statusText: text };
+}
+
+function statPair(raw: Record<string, any>, matcher: RegExp): [number, number] | null {
+  const periods = raw['content']?.stats?.Periods ?? raw['content']?.stats?.periods;
+  const all = periods?.All ?? periods?.all;
+  const groups: any[] = all?.stats ?? [];
+  for (const g of groups) {
+    for (const s of g?.stats ?? []) {
+      const key = String(s?.title ?? s?.key ?? "");
+      if (!matcher.test(key)) continue;
+      const v = s?.stats ?? s?.value;
+      if (!Array.isArray(v)) continue;
+      const n = v.map((x: any) => {
+        const num = Number(String(x ?? 0).replace(/[^\d.]/g, ""));
+        return Number.isFinite(num) ? num : 0;
+      });
+      return [n[0] ?? 0, n[1] ?? 0];
+    }
+  }
+  return null;
+}
+
+function parseLiveStats(raw: Record<string, any>): LiveStats | null {
+  const possession = statPair(raw, /possession/i);
+  const shots = statPair(raw, /total shots|tirs/i);
+  if (!possession && !shots) return null;
+  return {
+    possession: possession ?? [50, 50],
+    shots: shots ?? [0, 0],
+    onTarget: statPair(raw, /on target|cadr/i) ?? [0, 0],
+    xg: statPair(raw, /expected goals|xG/i) ?? [0, 0],
+    corners: statPair(raw, /corner/i) ?? [0, 0],
+    bigChances: statPair(raw, /big chance/i) ?? [0, 0],
+    reds: statPair(raw, /red card/i) ?? [0, 0],
+  };
+}
+
+async function fetchStandings(
+  raw: Record<string, any>,
+  homeId: number,
+  awayId: number,
+): Promise<{ home: TableRow | null; away: TableRow | null; teams: number }> {
+  const url: string | undefined = raw['content']?.table?.url;
+  if (!url) return { home: null, away: null, teams: 0 };
+  try {
+    const res = await fetch(url, { headers: { "User-Agent": UA } });
+    if (!res.ok) return { home: null, away: null, teams: 0 };
+    const xml = await res.text();
+    const rows = [...xml.matchAll(/<t\s([^>]*)\/>/g)].map((m, i) => {
+      const attrs: Record<string, string> = {};
+      for (const a of m[1]!.matchAll(/(\w+)="([^"]*)"/g)) attrs[a[1]!] = a[2]!;
+      return {
+        id: Number(attrs['id'] ?? 0),
+        position: i + 1,
+        points: Number(attrs['p'] ?? 0),
+        played:
+          Number(attrs['w'] ?? 0) + Number(attrs['d'] ?? 0) + Number(attrs['l'] ?? 0),
+        goalDiff: Number(attrs['g'] ?? 0) - Number(attrs['c'] ?? 0),
+      };
+    });
+    const pick = (id: number): TableRow | null => {
+      const r = rows.find((x) => x.id === id);
+      return r ? { position: r.position, points: r.points, played: r.played, goalDiff: r.goalDiff } : null;
+    };
+    return { home: pick(homeId), away: pick(awayId), teams: rows.length };
+  } catch {
+    return { home: null, away: null, teams: 0 };
+  }
+}
 
 type RawForm = Array<{
   resultString?: string;
@@ -199,6 +302,9 @@ export async function fetchMatchDetails(matchId: string): Promise<MatchDetail> {
   const homeForm = mapForm(teamForm[0] ?? []);
   const awayForm = mapForm(teamForm[1] ?? []);
   const h2hRaw = raw['content']?.h2h ?? {};
+  const homeId = g.homeTeam?.id ?? 0;
+  const awayId = g.awayTeam?.id ?? 0;
+  const { minute, halftime, statusText } = parseMinute(raw);
 
   return {
     matchId: String(g.matchId ?? matchId),
@@ -228,6 +334,14 @@ export async function fetchMatchDetails(matchId: string): Promise<MatchDetail> {
         date: m.status?.utcTime ?? null,
       })),
     },
+    live: {
+      minute,
+      ongoing: !!g.started && !g.finished,
+      statusText,
+      halftime,
+    },
+    liveStats: g.started ? parseLiveStats(raw) : null,
+    standings: await fetchStandings(raw, homeId, awayId),
   };
 }
 
