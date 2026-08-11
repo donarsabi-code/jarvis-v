@@ -18,8 +18,8 @@ export type EngineOutput = {
   reasoning: string;
 };
 
-const HOME_EDGE = 1.12;
-const AWAY_MALUS = 0.94;
+export const HOME_EDGE = 1.12;
+export const AWAY_MALUS = 0.94;
 
 function fact(n: number): number {
   let r = 1;
@@ -31,7 +31,7 @@ function poisson(k: number, lambda: number): number {
   return (Math.pow(lambda, k) * Math.exp(-lambda)) / fact(k);
 }
 
-function clampLambda(x: number): number {
+export function clampLambda(x: number): number {
   if (!Number.isFinite(x) || x <= 0) return 1.05;
   return Math.max(0.25, Math.min(3.6, x));
 }
@@ -76,7 +76,7 @@ function h2hBias(summary: [number, number, number]): number {
   return ((w - l) / total) * 0.18; // ±18 % sur les lambdas
 }
 
-function buildGrid(lh: number, la: number) {
+export function buildGrid(lh: number, la: number) {
   const grid: Array<{ h: number; a: number; p: number }> = [];
   for (let h = 0; h <= 6; h++) {
     for (let a = 0; a <= 6; a++) grid.push({ h, a, p: poisson(h, lh) * poisson(a, la) });
