@@ -192,13 +192,20 @@ function FormCard({
 function AiSection({ matchId, title }: { matchId: string; title: string }) {
   const run = useServerFn(getAiMatchAnalysis);
   const [content, setContent] = useState<string | null>(null);
+  const [locked, setLocked] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const analyse = async () => {
     setLoading(true);
     try {
       const res = await run({ data: matchId });
-      setContent(res.content);
+      if (res.locked) {
+        setLocked(res.message);
+        setContent(null);
+      } else {
+        setLocked(null);
+        setContent(res.content);
+      }
     } catch {
       toast.error("Données du match indisponibles pour le moment.");
     } finally {
@@ -212,7 +219,8 @@ function AiSection({ matchId, title }: { matchId: string; title: string }) {
         <Bot className="size-4 text-primary" /> Analyse IA 🤖
       </h2>
       <p className="mt-1 text-xs text-muted-foreground">
-        Forme, H2H, stats, blessés et tendances — gratuit et illimité, sans inscription
+        Prédiction finale verrouillée à la 15ᵉ minute du match en temps réel — TMP, H2H, classement et
+        vibration du terrain. Gratuit et illimité, sans inscription.
       </p>
 
       {content ? (
@@ -221,9 +229,16 @@ function AiSection({ matchId, title }: { matchId: string; title: string }) {
           <AiNarrative title={title} facts={content} />
         </>
       ) : (
-        <Button className="mt-4" onClick={() => void analyse()} disabled={loading}>
-          {loading ? "JARVIS analyse…" : "Lancer l'analyse TMP"}
-        </Button>
+        <>
+          {locked ? (
+            <p className="mt-4 rounded-md border border-primary/30 bg-secondary/40 p-3 text-sm leading-relaxed text-muted-foreground">
+              {locked}
+            </p>
+          ) : null}
+          <Button className="mt-4" onClick={() => void analyse()} disabled={loading}>
+            {loading ? "JARVIS analyse…" : locked ? "Réessayer l'analyse" : "Lancer l'analyse TMP"}
+          </Button>
+        </>
       )}
     </section>
   );
