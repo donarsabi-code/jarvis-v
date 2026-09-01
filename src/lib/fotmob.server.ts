@@ -396,7 +396,7 @@ export async function fetchTeamForm(
 ): Promise<{ form: FormItem[]; stats: TeamStats }> {
   const raw = await fotmob<Record<string, any>>(`/teams?id=${teamId}&tab=overview`);
   const primaryLeague: string | undefined =
-    raw['overview']?.table?.[0]?.data?.leagueName ?? raw['details']?.latestSeason ? undefined : undefined;
+    raw['overview']?.table?.[0]?.data?.leagueName ?? raw['details']?.primaryLeagueName ?? undefined;
   const form = mapForm((raw['overview']?.teamForm ?? []) as RawForm, primaryLeague);
   const realName = raw['details']?.name ?? teamName;
   return { form, stats: computeStats(form, realName) };
