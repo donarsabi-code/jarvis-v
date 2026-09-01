@@ -15,6 +15,7 @@ import { Route as JarvisRouteImport } from './routes/jarvis'
 import { Route as PredictionsRouteImport } from './routes/predictions'
 import { Route as MatchMatchIdRouteImport } from './routes/match.$matchId'
 import { Route as ApiPublicHooksDailyPredictionsRouteImport } from './routes/api/public/hooks/daily-predictions'
+import { Route as ApiPublicHooksLiveAnalysisRouteImport } from './routes/api/public/hooks/live-analysis'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -47,6 +48,12 @@ const ApiPublicHooksDailyPredictionsRoute =
     path: '/api/public/hooks/daily-predictions',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksLiveAnalysisRoute =
+  ApiPublicHooksLiveAnalysisRouteImport.update({
+    id: '/api/public/hooks/live-analysis',
+    path: '/api/public/hooks/live-analysis',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -55,6 +62,7 @@ export interface FileRoutesByFullPath {
   '/predictions': typeof PredictionsRoute
   '/match/$matchId': typeof MatchMatchIdRoute
   '/api/public/hooks/daily-predictions': typeof ApiPublicHooksDailyPredictionsRoute
+  '/api/public/hooks/live-analysis': typeof ApiPublicHooksLiveAnalysisRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -63,6 +71,7 @@ export interface FileRoutesByTo {
   '/predictions': typeof PredictionsRoute
   '/match/$matchId': typeof MatchMatchIdRoute
   '/api/public/hooks/daily-predictions': typeof ApiPublicHooksDailyPredictionsRoute
+  '/api/public/hooks/live-analysis': typeof ApiPublicHooksLiveAnalysisRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -72,6 +81,7 @@ export interface FileRoutesById {
   '/predictions': typeof PredictionsRoute
   '/match/$matchId': typeof MatchMatchIdRoute
   '/api/public/hooks/daily-predictions': typeof ApiPublicHooksDailyPredictionsRoute
+  '/api/public/hooks/live-analysis': typeof ApiPublicHooksLiveAnalysisRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -82,6 +92,7 @@ export interface FileRouteTypes {
     | '/predictions'
     | '/match/$matchId'
     | '/api/public/hooks/daily-predictions'
+    | '/api/public/hooks/live-analysis'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -90,6 +101,7 @@ export interface FileRouteTypes {
     | '/predictions'
     | '/match/$matchId'
     | '/api/public/hooks/daily-predictions'
+    | '/api/public/hooks/live-analysis'
   id:
     | '__root__'
     | '/'
@@ -98,6 +110,7 @@ export interface FileRouteTypes {
     | '/predictions'
     | '/match/$matchId'
     | '/api/public/hooks/daily-predictions'
+    | '/api/public/hooks/live-analysis'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -107,6 +120,7 @@ export interface RootRouteChildren {
   PredictionsRoute: typeof PredictionsRoute
   MatchMatchIdRoute: typeof MatchMatchIdRoute
   ApiPublicHooksDailyPredictionsRoute: typeof ApiPublicHooksDailyPredictionsRoute
+  ApiPublicHooksLiveAnalysisRoute: typeof ApiPublicHooksLiveAnalysisRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -153,6 +167,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksDailyPredictionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/live-analysis': {
+      id: '/api/public/hooks/live-analysis'
+      path: '/api/public/hooks/live-analysis'
+      fullPath: '/api/public/hooks/live-analysis'
+      preLoaderRoute: typeof ApiPublicHooksLiveAnalysisRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -163,6 +184,7 @@ const rootRouteChildren: RootRouteChildren = {
   PredictionsRoute: PredictionsRoute,
   MatchMatchIdRoute: MatchMatchIdRoute,
   ApiPublicHooksDailyPredictionsRoute: ApiPublicHooksDailyPredictionsRoute,
+  ApiPublicHooksLiveAnalysisRoute: ApiPublicHooksLiveAnalysisRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
