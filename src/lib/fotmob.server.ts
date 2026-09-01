@@ -86,6 +86,8 @@ export type FormItem = {
   home: string;
   away: string;
   date: string | null;
+  /** Compétition du match de forme (sert à ne garder que le championnat). */
+  tournament: string | null;
 };
 
 export type TeamStats = {
