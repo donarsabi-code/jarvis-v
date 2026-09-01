@@ -231,6 +231,9 @@ type RawForm = Array<{
   date?: { utcTime?: string };
   home?: { name?: string; isOurTeam?: boolean };
   away?: { name?: string; isOurTeam?: boolean };
+  tournament?: { name?: string; leagueName?: string };
+  leagueName?: string;
+  tournamentName?: string;
 }>;
 
 function computeStats(form: FormItem[], teamName: string): TeamStats {
@@ -241,7 +244,7 @@ function computeStats(form: FormItem[], teamName: string): TeamStats {
     conceded = 0,
     cleanSheets = 0,
     scoredInAll = form.length > 0;
-  const weights = [1.5, 1.3, 1.0, 0.8, 0.6];
+  const weights = [1.5, 1.35, 1.2, 1.0, 0.8, 0.6];
   let momentum = 0;
   let weightTotal = 0;
 
@@ -283,15 +286,36 @@ function computeStats(form: FormItem[], teamName: string): TeamStats {
   };
 }
 
-function mapForm(raw: RawForm): FormItem[] {
-  return (raw ?? []).slice(0, 5).map((f) => ({
+function normalize(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+/**
+ * 6 dernières confrontations, restreintes au championnat de la rencontre.
+ * Si moins de 3 matchs de championnat sont exploitables, on complète avec
+ * les autres compétitions pour ne jamais perdre la lecture de forme.
+ */
+function mapForm(raw: RawForm, league?: string): FormItem[] {
+  const all: FormItem[] = (raw ?? []).map((f) => ({
     result: f.resultString ?? "-",
     score: f.score ?? "0 - 0",
     home: f.home?.name ?? "",
     away: f.away?.name ?? "",
     date: f.date?.utcTime ?? null,
+    tournament: f.tournament?.name ?? f.tournament?.leagueName ?? f.leagueName ?? f.tournamentName ?? null,
   }));
+  if (league) {
+    const target = normalize(league);
+    const inLeague = all.filter((f) => f.tournament && normalize(f.tournament) === target);
+    if (inLeague.length >= 3) return inLeague.slice(0, 6);
+  }
+  return all.slice(0, 6);
 }
+
 
 export async function fetchMatchDetails(matchId: string): Promise<MatchDetail> {
   const raw = await fotmob<Record<string, any>>(`/matchDetails?matchId=${matchId}`);
