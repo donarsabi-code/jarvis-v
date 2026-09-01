@@ -30,8 +30,13 @@ export const getAiMatchAnalysis = createServerFn({ method: "POST" })
       };
     }
 
-    // Une fois verrouillée à la 15e, l'analyse ne change plus jamais.
-    if (cached.data) {
+    // Relecture serveur : tant que le match est en cours, l'analyse est
+    // recalculée (rafraîchissement > 90 s) au lieu d'être figée.
+    const ongoing = detail.live?.ongoing ?? (detail.started && !detail.finished);
+    const age = cached.data?.created_at
+      ? Date.now() - new Date(cached.data.created_at).getTime()
+      : Number.POSITIVE_INFINITY;
+    if (cached.data && (!ongoing || age < 90_000)) {
       return { content: cached.data.content, locked: false as const, minute: gate.minute, message: null, degraded: false as const };
     }
 

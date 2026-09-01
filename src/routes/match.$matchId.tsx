@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { queryOptions, useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getMatchDetail } from "@/lib/football.functions";
 import { getAiMatchAnalysis } from "@/lib/ai.functions";
 import { Button } from "@/components/ui/button";
@@ -109,7 +109,12 @@ function MatchPage() {
         </ul>
       </section>
 
-      <AiSection matchId={matchId} title={`${data.home.name} - ${data.away.name}`} />
+      <AiSection
+        matchId={matchId}
+        title={`${data.home.name} - ${data.away.name}`}
+        minute={data.live?.minute ?? null}
+        ongoing={data.live?.ongoing ?? false}
+      />
     </main>
   );
 }
@@ -189,7 +194,17 @@ function FormCard({
   );
 }
 
-function AiSection({ matchId, title }: { matchId: string; title: string }) {
+function AiSection({
+  matchId,
+  title,
+  minute,
+  ongoing,
+}: {
+  matchId: string;
+  title: string;
+  minute: number | null;
+  ongoing: boolean;
+}) {
   const run = useServerFn(getAiMatchAnalysis);
   const [content, setContent] = useState<string | null>(null);
   const [locked, setLocked] = useState<string | null>(null);
@@ -213,14 +228,28 @@ function AiSection({ matchId, title }: { matchId: string; title: string }) {
     }
   };
 
+  // Déclenchement automatique côté serveur dès la 15e minute, puis
+  // réévaluation continue tant que le match est en cours.
+  const busy = useRef(false);
+  useEffect(() => {
+    if (!ongoing || minute === null || minute < 15) return;
+    if (busy.current) return;
+    busy.current = true;
+    void analyse().finally(() => {
+      busy.current = false;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ongoing, minute, matchId]);
+
   return (
     <section className="panel glow mt-4 p-5">
       <h2 className="flex items-center gap-2 text-sm font-semibold">
         <Bot className="size-4 text-primary" /> Analyse IA 🤖
       </h2>
       <p className="mt-1 text-xs text-muted-foreground">
-        Prédiction finale verrouillée à la 15ᵉ minute du match en temps réel — TMP, H2H, classement et
-        vibration du terrain. Gratuit et illimité, sans inscription.
+        Dès la 15ᵉ minute, l'analyse se lance automatiquement côté serveur : 6 derniers matchs de
+        championnat, classement, enjeu, H2H et vibration en direct (xG, tirs, possession). Gratuit et
+        illimité, sans inscription.
       </p>
 
       {content ? (
