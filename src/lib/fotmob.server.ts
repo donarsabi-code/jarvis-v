@@ -325,8 +325,9 @@ export async function fetchMatchDetails(matchId: string): Promise<MatchDetail> {
   const teamForm: RawForm[] = facts.teamForm ?? [[], []];
   const homeName = g.homeTeam?.name ?? "";
   const awayName = g.awayTeam?.name ?? "";
-  const homeForm = mapForm(teamForm[0] ?? []);
-  const awayForm = mapForm(teamForm[1] ?? []);
+  const leagueName: string = g.leagueName ?? "";
+  const homeForm = mapForm(teamForm[0] ?? [], leagueName);
+  const awayForm = mapForm(teamForm[1] ?? [], leagueName);
   const h2hRaw = raw['content']?.h2h ?? {};
   const homeId = g.homeTeam?.id ?? 0;
   const awayId = g.awayTeam?.id ?? 0;
@@ -358,6 +359,7 @@ export async function fetchMatchDetails(matchId: string): Promise<MatchDetail> {
         home: m.home?.name ?? "",
         away: m.away?.name ?? "",
         date: m.status?.utcTime ?? null,
+        tournament: m.tournament?.name ?? m.leagueName ?? null,
       })),
     },
     live: {
@@ -393,7 +395,9 @@ export async function fetchTeamForm(
   teamName: string,
 ): Promise<{ form: FormItem[]; stats: TeamStats }> {
   const raw = await fotmob<Record<string, any>>(`/teams?id=${teamId}&tab=overview`);
-  const form = mapForm((raw['overview']?.teamForm ?? []) as RawForm);
+  const primaryLeague: string | undefined =
+    raw['overview']?.table?.[0]?.data?.leagueName ?? raw['details']?.latestSeason ? undefined : undefined;
+  const form = mapForm((raw['overview']?.teamForm ?? []) as RawForm, primaryLeague);
   const realName = raw['details']?.name ?? teamName;
   return { form, stats: computeStats(form, realName) };
 }
