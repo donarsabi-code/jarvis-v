@@ -25,7 +25,7 @@ export const Route = createFileRoute("/api/public/hooks/live-analysis")({
         }
         try {
           const { fetchMatchesByDate, fetchMatchDetails } = await import("@/lib/fotmob.server");
-          const { analyseLiveMatch, checkLiveGate } = await import("@/lib/jarvis-live.server");
+          const { analyseLiveMatch } = await import("@/lib/jarvis-live.server");
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
           const date = new Date().toISOString().slice(0, 10);
@@ -39,7 +39,7 @@ export const Route = createFileRoute("/api/public/hooks/live-analysis")({
           for (const m of live) {
             try {
               const detail = await fetchMatchDetails(String(m.id));
-              if (!checkLiveGate(detail).ready) continue;
+              
               const content = analyseLiveMatch(detail).analysis;
               await supabaseAdmin.from("ai_analyses").upsert(
                 { match_id: String(m.id), content, created_at: new Date().toISOString() },
