@@ -110,7 +110,6 @@ function MatchPage() {
 
       <AiSection
         matchId={matchId}
-        title={`${data.home.name} - ${data.away.name}`}
         minute={data.live?.minute ?? null}
         ongoing={data.live?.ongoing ?? false}
       />
@@ -150,7 +149,6 @@ function FormCard({
   stats,
   team,
 }: {
-  title: string;
   form: Array<{ result: string; score: string; home: string; away: string }>;
   stats: Stats;
   team: string;
@@ -195,7 +193,6 @@ function FormCard({
 
 function AiSection({
   matchId,
-  title,
   minute,
   ongoing,
 }: {
