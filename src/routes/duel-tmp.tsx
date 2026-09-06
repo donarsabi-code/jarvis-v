@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Swords } from "lucide-react";
 import { toast } from "sonner";
-import { AiNarrative } from "@/components/AiNarrative";
 
 export const Route = createFileRoute("/duel-tmp")({
   head: () => ({
@@ -93,10 +92,6 @@ function DuelPage() {
             <Side name={result.awayName} logo={result.awayLogo} tmp={result.tmpAway} />
           </div>
           <p className="mt-5 whitespace-pre-wrap text-sm leading-relaxed">{result.analysis}</p>
-          <AiNarrative
-            title={`${result.homeName} - ${result.awayName}`}
-            facts={`TMP ${result.homeName} : ${result.tmpHome}/100\nTMP ${result.awayName} : ${result.tmpAway}/100\nScore exact retenu : ${result.home}-${result.away}\nConfiance : ${result.confidence}%\n\n${result.analysis}`}
-          />
         </section>
       )}
     </main>
