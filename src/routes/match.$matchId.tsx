@@ -149,6 +149,7 @@ function FormCard({
   stats,
   team,
 }: {
+  title: string;
   form: Array<{ result: string; score: string; home: string; away: string }>;
   stats: Stats;
   team: string;
