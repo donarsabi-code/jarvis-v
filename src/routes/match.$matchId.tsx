@@ -225,11 +225,10 @@ function AiSection({
     }
   };
 
-  // Déclenchement automatique côté serveur dès la 15e minute, puis
-  // réévaluation continue tant que le match est en cours.
+  // Réévaluation continue uniquement si le match est déjà en cours.
   const busy = useRef(false);
   useEffect(() => {
-    if (!ongoing || minute === null || minute < 15) return;
+    if (!ongoing || minute === null) return;
     if (busy.current) return;
     busy.current = true;
     void analyse().finally(() => {
@@ -244,10 +243,11 @@ function AiSection({
         <Bot className="size-4 text-primary" /> Analyse IA 🤖
       </h2>
       <p className="mt-1 text-xs text-muted-foreground">
-        Dès la 15ᵉ minute, l'analyse se lance automatiquement côté serveur : 6 derniers matchs de
-        championnat, classement, enjeu, H2H et vibration en direct (xG, tirs, possession). Gratuit et
-        illimité, sans inscription.
+        Analyse disponible avant le match : 6 derniers matchs de championnat, classement, enjeu, H2H,
+        forces et faiblesses, puis prédiction unique de score exact. Gratuit et illimité, sans
+        inscription.
       </p>
+
 
       {content ? (
         <div className="mt-4 whitespace-pre-wrap text-sm leading-relaxed">{content}</div>
