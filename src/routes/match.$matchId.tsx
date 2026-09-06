@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Bot, CalendarDays, MapPin, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
-import { AiNarrative } from "@/components/AiNarrative";
 
 const logo = (id: number) => `https://images.fotmob.com/image_resources/logo/teamlogo/${id}.png`;
 
@@ -253,10 +252,7 @@ function AiSection({
       </p>
 
       {content ? (
-        <>
-          <div className="mt-4 whitespace-pre-wrap text-sm leading-relaxed">{content}</div>
-          <AiNarrative title={title} facts={content} />
-        </>
+        <div className="mt-4 whitespace-pre-wrap text-sm leading-relaxed">{content}</div>
       ) : (
         <>
           {locked ? (
