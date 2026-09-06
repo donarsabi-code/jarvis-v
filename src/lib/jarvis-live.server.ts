@@ -83,7 +83,7 @@ export type LiveEngineOutput = EngineOutput & {
  * enjeu, H2H) + vibration en direct à partir de la 15e minute.
  */
 export function analyseLiveMatch(detail: MatchDetail): LiveEngineOutput {
-  const minute = Math.max(LOCK_MINUTE, liveMinute(detail) ?? LOCK_MINUTE);
+  const minute = Math.max(1, liveMinute(detail) ?? 1);
   const base = analyseMatch(detail);
 
   const ch = detail.score.home ?? 0;
