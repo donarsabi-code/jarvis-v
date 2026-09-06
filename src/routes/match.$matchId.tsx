@@ -197,7 +197,7 @@ function AiSection({
   ongoing,
 }: {
   matchId: string;
-  title: string;
+  
   minute: number | null;
   ongoing: boolean;
 }) {
