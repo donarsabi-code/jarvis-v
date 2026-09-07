@@ -32,7 +32,7 @@ export const getAiMatchAnalysis = createServerFn({ method: "POST" })
       .from("ai_analyses")
       .upsert({ match_id: data, content, created_at: new Date().toISOString() }, { onConflict: "match_id" });
 
-    return { content, locked: false as const, minute, message: null, degraded: false as const };
+    return { content, locked: false as const, minute: null, message: null, degraded: false as const };
 
   });
 

@@ -225,17 +225,14 @@ function AiSection({
     }
   };
 
-  // Réévaluation continue uniquement si le match est déjà en cours.
+  // Analyse historique unique : chargée une seule fois, jamais recalculée en direct.
   const busy = useRef(false);
   useEffect(() => {
-    if (!ongoing || minute === null) return;
     if (busy.current) return;
     busy.current = true;
-    void analyse().finally(() => {
-      busy.current = false;
-    });
+    void analyse();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ongoing, minute, matchId]);
+  }, [matchId]);
 
   return (
     <section className="panel glow mt-4 p-5">
