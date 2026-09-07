@@ -108,11 +108,7 @@ function MatchPage() {
         </ul>
       </section>
 
-      <AiSection
-        matchId={matchId}
-        minute={data.live?.minute ?? null}
-        ongoing={data.live?.ongoing ?? false}
-      />
+      <AiSection matchId={matchId} />
     </main>
   );
 }
@@ -192,16 +188,7 @@ function FormCard({
   );
 }
 
-function AiSection({
-  matchId,
-  minute,
-  ongoing,
-}: {
-  matchId: string;
-  
-  minute: number | null;
-  ongoing: boolean;
-}) {
+function AiSection({ matchId }: { matchId: string }) {
   const run = useServerFn(getAiMatchAnalysis);
   const [content, setContent] = useState<string | null>(null);
   const [locked, setLocked] = useState<string | null>(null);
