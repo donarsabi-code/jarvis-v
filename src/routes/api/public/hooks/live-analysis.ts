@@ -7,9 +7,9 @@ const CORS = {
 } as const;
 
 /**
- * Balayage serveur : chaque match en cours ayant dépassé la 15e minute
- * voit son analyse recalculée et stockée automatiquement (moteur local,
- * aucun crédit IA consommé).
+ * Balayage serveur : pré-calcule l'analyse historique (forme championnat,
+ * classement, enjeu, H2H) des matchs du jour non encore analysés.
+ * Moteur local uniquement, aucun crédit IA consommé, aucun score en direct.
  */
 export const Route = createFileRoute("/api/public/hooks/live-analysis")({
   server: {
@@ -25,24 +25,32 @@ export const Route = createFileRoute("/api/public/hooks/live-analysis")({
         }
         try {
           const { fetchMatchesByDate, fetchMatchDetails } = await import("@/lib/fotmob.server");
-          const { analyseLiveMatch } = await import("@/lib/jarvis-live.server");
+          const { analyseMatch } = await import("@/lib/jarvis-engine.server");
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
           const date = new Date().toISOString().slice(0, 10);
           const leagues = await fetchMatchesByDate(date);
-          const live = leagues
+          const todays = leagues
             .flatMap((l) => l.matches)
-            .filter((m: any) => m.started && !m.finished)
+            .filter((m: any) => !m.finished)
             .slice(0, 25);
 
+          const ids = todays.map((m: any) => String(m.id));
+          const existing = await supabaseAdmin
+            .from("ai_analyses")
+            .select("match_id")
+            .in("match_id", ids);
+          const done = new Set((existing.data ?? []).map((r) => r.match_id));
+
           let updated = 0;
-          for (const m of live) {
+          for (const m of todays) {
+            const id = String(m.id);
+            if (done.has(id)) continue;
             try {
-              const detail = await fetchMatchDetails(String(m.id));
-              
-              const content = analyseLiveMatch(detail).analysis;
+              const detail = await fetchMatchDetails(id);
+              const content = analyseMatch(detail).analysis;
               await supabaseAdmin.from("ai_analyses").upsert(
-                { match_id: String(m.id), content, created_at: new Date().toISOString() },
+                { match_id: id, content, created_at: new Date().toISOString() },
                 { onConflict: "match_id" },
               );
               updated += 1;
@@ -51,7 +59,7 @@ export const Route = createFileRoute("/api/public/hooks/live-analysis")({
             }
           }
 
-          return new Response(JSON.stringify({ ok: true, date, scanned: live.length, updated }), {
+          return new Response(JSON.stringify({ ok: true, date, scanned: todays.length, updated }), {
             headers: { "Content-Type": "application/json", ...CORS },
           });
         } catch (e) {
