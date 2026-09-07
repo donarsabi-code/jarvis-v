@@ -86,10 +86,35 @@ export function buildGrid(lh: number, la: number) {
 
 type Side = { name: string; stats: TeamStats; form: FormItem[] };
 
+type TableCtx = { position?: number | null; points?: number | null; teams?: number | null } | null;
+
+/** Poussée du classement : ±1 = premier vs dernier. */
+function tablePush(row: TableCtx, teams?: number | null): number {
+  const pos = row?.position;
+  const n = teams ?? row?.teams ?? 20;
+  if (!pos || !n || n < 2) return 0;
+  return 1 - (2 * (pos - 1)) / (n - 1); // +1 leader, -1 lanterne rouge
+}
+
+/** Volatilité de la forme : alternance de résultats = match imprévisible. */
+function volatility(form: FormItem[]): number {
+  const seq = form.slice(0, 6).map((f) => (f.result === "W" ? 3 : f.result === "D" ? 1 : 0));
+  if (seq.length < 2) return 0.4;
+  let flips = 0;
+  for (let i = 1; i < seq.length; i++) if (seq[i] !== seq[i - 1]) flips++;
+  return Math.min(1, flips / (seq.length - 1));
+}
+
 export function analyseDuel(
   home: Side,
   away: Side,
-  ctx: { league?: string | null; stadium?: string | null; h2h?: [number, number, number]; h2hCount?: number } = {},
+  ctx: {
+    league?: string | null;
+    stadium?: string | null;
+    h2h?: [number, number, number];
+    h2hCount?: number;
+    standings?: { home: TableCtx; away: TableCtx; teams?: number | null };
+  } = {},
 ): EngineOutput {
   const tmpHome = computeTmp(home.stats, home.form);
   const tmpAway = computeTmp(away.stats, away.form);
@@ -97,16 +122,27 @@ export function analyseDuel(
   const abs = Math.abs(gap);
   const bias = ctx.h2h ? h2hBias(ctx.h2h) : 0;
 
+  const pushH = tablePush(ctx.standings?.home ?? null, ctx.standings?.teams);
+  const pushA = tablePush(ctx.standings?.away ?? null, ctx.standings?.teams);
+  const tableGap = pushH - pushA; // -2..2
+  const stake = Math.abs(tableGap); // extrémité de la confrontation
+
+  const volH = volatility(home.form);
+  const volA = volatility(away.form);
+  const chaos = (volH + volA) / 2; // 0 = série stable, 1 = totalement imprévisible
+
   const lh = clampLambda(
-    ((home.stats.avgScored + away.stats.avgConceded) / 2) * HOME_EDGE * (1 + gap / 220 + bias),
+    ((home.stats.avgScored + away.stats.avgConceded) / 2) *
+      HOME_EDGE *
+      (1 + gap / 220 + bias + tableGap * 0.09),
   );
   const la = clampLambda(
-    ((away.stats.avgScored + home.stats.avgConceded) / 2) * AWAY_MALUS * (1 - gap / 220 - bias),
+    ((away.stats.avgScored + home.stats.avgConceded) / 2) *
+      AWAY_MALUS *
+      (1 - gap / 220 - bias - tableGap * 0.09),
   );
 
   const grid = buildGrid(lh, la);
-  const best = grid[0]!;
-  const bestProb = Math.round(best.p * 1000) / 10;
 
   let pH = 0;
   let pD = 0;
@@ -127,8 +163,42 @@ export function analyseDuel(
     away: Math.round((pA / norm) * 1000) / 10,
   };
 
+  // Jugeote : la grille de Poisson seule tire vers les petits scores. On
+  // repondère les candidats selon l'issue la plus probable, l'extrémité de la
+  // confrontation (leader contre relégable), l'appétit offensif et le chaos.
+  const favourite = probs.home >= probs.away && probs.home >= probs.draw
+    ? "H"
+    : probs.away >= probs.home && probs.away >= probs.draw
+      ? "A"
+      : "D";
+  const appetite = (lh + la) / 2;
+
+  const scored = grid.slice(0, 12).map((g) => {
+    const outcome = g.h > g.a ? "H" : g.h === g.a ? "D" : "A";
+    let w = g.p;
+    if (outcome === favourite) w *= 1.35;
+    // Une confrontation extrême autorise un écart plus large que le score modal.
+    const margin = Math.abs(g.h - g.a);
+    w *= 1 + stake * 0.22 * Math.min(margin, 3);
+    // Matchs ouverts : on ne s'enferme pas sur un 1-0.
+    w *= 1 + (appetite - 1.2) * 0.18 * (g.h + g.a);
+    // Séries instables : le nul et les scénarios secondaires reprennent du poids.
+    if (chaos > 0.6 && outcome === "D") w *= 1.12;
+    return { ...g, w };
+  });
+  scored.sort((x, y) => y.w - x.w);
+  const best = scored[0]!;
+  const alt = scored.slice(1, 4);
+  const bestProb = Math.round(best.p * 1000) / 10;
+
   const topOutcome = Math.max(probs.home, probs.draw, probs.away);
-  const confidence = Math.max(38, Math.min(93, Math.round(topOutcome * 0.7 + abs * 0.6 + best.p * 100)));
+  const confidence = Math.max(
+    35,
+    Math.min(
+      93,
+      Math.round(topOutcome * 0.62 + abs * 0.5 + stake * 8 + best.p * 100 - chaos * 9),
+    ),
+  );
 
   const lecture =
     abs > 25
@@ -140,28 +210,67 @@ export function analyseDuel(
 
   const fmt = (s: Side) =>
     s.form
-      .slice(0, 5)
+      .slice(0, 6)
       .map((f) => f.result)
       .join("·") || "n/d";
 
+  const place = (row: TableCtx, name: string) =>
+    row?.position
+      ? `${name} pointe ${row.position}${row.position === 1 ? "er" : "e"}${
+          ctx.standings?.teams ? ` sur ${ctx.standings.teams}` : ""
+        }${row.points != null ? ` avec ${row.points} point(s)` : ""}`
+      : `${name} : position au classement non communiquée`;
+
+  const enjeu =
+    stake > 1.1
+      ? `Confrontation aux extrémités du tableau : le rapport de force institutionnel est massif, l'obligation de résultat pèse presque entièrement sur ${tableGap > 0 ? away.name : home.name}.`
+      : stake > 0.5
+        ? `Écart de statut réel : ${tableGap > 0 ? home.name : away.name} a la légitimité comptable, l'autre joue le coup à renverser.`
+        : `Statuts comparables : rien dans le classement ne tranche, la décision viendra de l'élan et du contexte de la rencontre.`;
+
+  const nerf =
+    chaos > 0.65
+      ? `Séries instables des deux côtés (volatilité ${Math.round(chaos * 100)} %) : le scénario peut basculer, la projection intègre cette marge de renversement.`
+      : chaos < 0.35
+        ? `Séries très lisibles (volatilité ${Math.round(chaos * 100)} %) : les deux équipes répètent leurs schémas, la projection est peu exposée à la surprise.`
+        : `Volatilité intermédiaire (${Math.round(chaos * 100)} %) : la trame reste lisible mais un fait de match peut la déplacer.`;
+
+  const forces = (s: Side, other: Side) => {
+    const bits: string[] = [];
+    if (s.stats.avgScored >= 1.8) bits.push("volume offensif élevé");
+    else if (s.stats.avgScored <= 0.9) bits.push("stérilité offensive");
+    if (s.stats.avgConceded <= 0.8) bits.push("bloc défensif solide");
+    else if (s.stats.avgConceded >= 1.8) bits.push("fragilité défensive nette");
+    if (s.stats.cleanSheets >= 3) bits.push("habitude du clean sheet");
+    if (s.stats.scoredInAll) bits.push("marque à chaque sortie");
+    if (s.stats.avgScored > other.stats.avgConceded + 0.5) bits.push("profil taillé pour punir ce type d'adversaire");
+    return bits.length ? bits.join(", ") : "profil sans trait dominant";
+  };
+
   const analysis = [
-    `Monsieur, lecture TMP terminée${ctx.league ? ` sur ${ctx.league}` : ""}${ctx.stadium ? `, ${ctx.stadium}` : ""}.`,
+    `Monsieur, lecture complète terminée${ctx.league ? ` sur ${ctx.league}` : ""}${ctx.stadium ? `, ${ctx.stadium}` : ""}.`,
     ``,
     `**1) Lecture TMP** — ${home.name} : **${tmpHome}/100** · ${away.name} : **${tmpAway}/100**. Écart de ${abs} point(s) : ${lecture}${leader ? `, à l'avantage de ${leader.name}` : ""}.`,
     ``,
-    `**2) Forme & tendances** — ${home.name} : ${fmt(home)} (${home.stats.wins}V·${home.stats.draws}N·${home.stats.losses}D, ${home.stats.avgScored.toFixed(2)} but marqué et ${home.stats.avgConceded.toFixed(2)} encaissé par match, ${home.stats.cleanSheets} clean sheet). ${away.name} : ${fmt(away)} (${away.stats.wins}V·${away.stats.draws}N·${away.stats.losses}D, ${away.stats.avgScored.toFixed(2)} / ${away.stats.avgConceded.toFixed(2)}, ${away.stats.cleanSheets} clean sheet).`,
+    `**2) Forme sur 6 journées de championnat** — ${home.name} : ${fmt(home)} (${home.stats.wins}V·${home.stats.draws}N·${home.stats.losses}D, ${home.stats.avgScored.toFixed(2)} but marqué et ${home.stats.avgConceded.toFixed(2)} encaissé par match, ${home.stats.cleanSheets} clean sheet). ${away.name} : ${fmt(away)} (${away.stats.wins}V·${away.stats.draws}N·${away.stats.losses}D, ${away.stats.avgScored.toFixed(2)} / ${away.stats.avgConceded.toFixed(2)}, ${away.stats.cleanSheets} clean sheet).`,
+    ``,
+    `**3) Classement & enjeu** — ${place(ctx.standings?.home ?? null, home.name)} ; ${place(ctx.standings?.away ?? null, away.name)}. ${enjeu}`,
+    ``,
+    `**4) Forces et faiblesses** — ${home.name} : ${forces(home, away)}. ${away.name} : ${forces(away, home)}.`,
     ``,
     ctx.h2h
-      ? `**3) Confrontations directes** — ${ctx.h2h[0]}V · ${ctx.h2h[1]}N · ${ctx.h2h[2]}D pour ${home.name} sur ${ctx.h2hCount ?? ctx.h2h[0] + ctx.h2h[1] + ctx.h2h[2]} duel(s) recensé(s). Correction appliquée au modèle : ${(bias * 100).toFixed(1)} %.`
-      : `**3) Confrontations directes** — aucune donnée H2H exploitable, le modèle s'appuie exclusivement sur l'élan récent.`,
+      ? `**5) Confrontations directes** — ${ctx.h2h[0]}V · ${ctx.h2h[1]}N · ${ctx.h2h[2]}D pour ${home.name} sur ${ctx.h2hCount ?? ctx.h2h[0] + ctx.h2h[1] + ctx.h2h[2]} duel(s) recensé(s). Correction appliquée au modèle : ${(bias * 100).toFixed(1)} %.`
+      : `**5) Confrontations directes** — aucune donnée H2H exploitable, le modèle s'appuie sur l'élan récent et le rapport de classement.`,
     ``,
-    `**4) Projection** — espérance de buts ${lh.toFixed(2)} contre ${la.toFixed(2)}. Probabilités : ${home.name} ${probs.home} % · nul ${probs.draw} % · ${away.name} ${probs.away} %. Les deux marquent : ${Math.round(bts * 100)} %. Plus de 2,5 buts : ${Math.round(over * 100)} %.`,
+    `**6) Renversement & marge d'incertitude** — ${nerf}`,
     ``,
-    `**Score exact retenu : ${home.name} ${best.h} - ${best.a} ${away.name}** · probabilité ${bestProb} % · confiance ${confidence} %. Une seule projection est retenue : c'est celle-là, Monsieur.`,
+    `**7) Projection** — espérance de buts ${lh.toFixed(2)} contre ${la.toFixed(2)}. Probabilités : ${home.name} ${probs.home} % · nul ${probs.draw} % · ${away.name} ${probs.away} %. Les deux marquent : ${Math.round(bts * 100)} %. Plus de 2,5 buts : ${Math.round(over * 100)} %. Scénarios secondaires écartés après pondération : ${alt.map((g) => `${g.h}-${g.a}`).join(", ")}.`,
+    ``,
+    `**Score exact retenu : ${home.name} ${best.h} - ${best.a} ${away.name}** · probabilité brute ${bestProb} % · confiance ${confidence} %. Une seule projection est retenue, Monsieur : celle-là, et elle tient compte de l'extrémité réelle de cette confrontation.`,
   ].join("\n");
 
   const reasoning =
-    `TMP ${tmpHome} contre ${tmpAway}, soit ${abs} point(s) d'écart : ${lecture}. ` +
+    `TMP ${tmpHome} contre ${tmpAway} (${abs} pt, ${lecture}), enjeu de classement ${stake.toFixed(2)}, volatilité ${Math.round(chaos * 100)} %. ` +
     `Espérance de buts ${lh.toFixed(2)}/${la.toFixed(2)} pour ${probs.home} % · ${probs.draw} % · ${probs.away} %. ` +
     `Score exact retenu ${best.h}-${best.a}, confiance ${confidence} %.`;
 
@@ -188,6 +297,11 @@ export function analyseMatch(detail: MatchDetail): EngineOutput {
       stadium: detail.stadium,
       h2h: detail.h2h.summary,
       h2hCount: detail.h2h.matches.length,
+      standings: {
+        home: detail.standings.home,
+        away: detail.standings.away,
+        teams: detail.standings.teams,
+      },
     },
   );
 }
