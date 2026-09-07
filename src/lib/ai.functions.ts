@@ -15,32 +15,24 @@ export const getAiMatchAnalysis = createServerFn({ method: "POST" })
       .maybeSingle();
 
     const { fetchMatchDetails } = await import("./fotmob.server");
-    const { analyseLiveMatch, liveMinute } = await import("./jarvis-live.server");
     const { analyseMatch } = await import("./jarvis-engine.server");
     const detail = await fetchMatchDetails(data);
-    const minute = liveMinute(detail);
-    const ongoing = detail.live?.ongoing ?? (detail.started && !detail.finished);
 
-    // Cache : figé avant coup d'envoi, rafraîchi toutes les 90 s en cours de match.
-    const age = cached.data?.created_at
-      ? Date.now() - new Date(cached.data.created_at).getTime()
-      : Number.POSITIVE_INFINITY;
-    if (cached.data && (!ongoing || age < 90_000)) {
-      return { content: cached.data.content, locked: false as const, minute, message: null, degraded: false as const };
+    // Prédiction historique unique : figée dès qu'elle est calculée, jamais
+    // recalculée à partir du score en direct.
+    if (cached.data) {
+      return { content: cached.data.content, locked: false as const, minute: null, message: null, degraded: false as const };
     }
 
     // Moteur JARVIS local: gratuit, illimité, aucun crédit consommé.
-    // Avant le coup d'envoi : prédiction visionnaire pré-match.
-    // Match lancé : même lecture enrichie de la vibration en direct.
-    const content = detail.started
-      ? analyseLiveMatch(detail).analysis
-      : analyseMatch(detail).analysis;
+    // Lecture purement historique : forme championnat, classement, enjeu, H2H.
+    const content = analyseMatch(detail).analysis;
 
     await supabaseAdmin
       .from("ai_analyses")
       .upsert({ match_id: data, content, created_at: new Date().toISOString() }, { onConflict: "match_id" });
 
-    return { content, locked: false as const, minute, message: null, degraded: false as const };
+    return { content, locked: false as const, minute: null, message: null, degraded: false as const };
 
   });
 

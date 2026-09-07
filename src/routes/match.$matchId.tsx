@@ -108,11 +108,7 @@ function MatchPage() {
         </ul>
       </section>
 
-      <AiSection
-        matchId={matchId}
-        minute={data.live?.minute ?? null}
-        ongoing={data.live?.ongoing ?? false}
-      />
+      <AiSection matchId={matchId} />
     </main>
   );
 }
@@ -192,16 +188,7 @@ function FormCard({
   );
 }
 
-function AiSection({
-  matchId,
-  minute,
-  ongoing,
-}: {
-  matchId: string;
-  
-  minute: number | null;
-  ongoing: boolean;
-}) {
+function AiSection({ matchId }: { matchId: string }) {
   const run = useServerFn(getAiMatchAnalysis);
   const [content, setContent] = useState<string | null>(null);
   const [locked, setLocked] = useState<string | null>(null);
@@ -225,17 +212,14 @@ function AiSection({
     }
   };
 
-  // Réévaluation continue uniquement si le match est déjà en cours.
+  // Analyse historique unique : chargée une seule fois, jamais recalculée en direct.
   const busy = useRef(false);
   useEffect(() => {
-    if (!ongoing || minute === null) return;
     if (busy.current) return;
     busy.current = true;
-    void analyse().finally(() => {
-      busy.current = false;
-    });
+    void analyse();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ongoing, minute, matchId]);
+  }, [matchId]);
 
   return (
     <section className="panel glow mt-4 p-5">
