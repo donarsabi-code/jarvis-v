@@ -352,7 +352,22 @@ export function analyseDuel(
   };
 }
 
+/** Minute de jeu exploitable, ou null si le direct n'est pas lisible. */
+export function liveMinuteOf(detail: MatchDetail): number | null {
+  if (!detail.started) return null;
+  if (detail.finished) return 90;
+  return detail.live.minute ?? null;
+}
+
+/** Le direct a-t-il atteint le seuil des 14,5 minutes de jeu ? */
+export function liveReady(detail: MatchDetail): boolean {
+  const m = liveMinuteOf(detail);
+  return m != null && m >= LIVE_THRESHOLD;
+}
+
 export function analyseMatch(detail: MatchDetail): EngineOutput {
+  const minute = liveMinuteOf(detail);
+  const useLive = minute != null && minute >= LIVE_THRESHOLD;
   return analyseDuel(
     { name: detail.home.name, stats: detail.stats.home, form: detail.form.home },
     { name: detail.away.name, stats: detail.stats.away, form: detail.form.away },
@@ -366,6 +381,14 @@ export function analyseMatch(detail: MatchDetail): EngineOutput {
         away: detail.standings.away,
         teams: detail.standings.teams,
       },
+      live: useLive
+        ? {
+            minute: minute!,
+            score: [detail.score.home ?? 0, detail.score.away ?? 0],
+            stats: detail.liveStats,
+          }
+        : null,
     },
   );
 }
+
