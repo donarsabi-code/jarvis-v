@@ -321,7 +321,16 @@ export function analyseDuel(
     ``,
     `**7) Projection** — espérance de buts ${lh.toFixed(2)} contre ${la.toFixed(2)}. Probabilités : ${home.name} ${probs.home} % · nul ${probs.draw} % · ${away.name} ${probs.away} %. Les deux marquent : ${Math.round(bts * 100)} %. Plus de 2,5 buts : ${Math.round(over * 100)} %. Scénarios secondaires écartés après pondération : ${alt.map((g) => `${g.h}-${g.a}`).join(", ")}.`,
     ``,
-    `**Score exact retenu : ${home.name} ${best.h} - ${best.a} ${away.name}** · probabilité brute ${bestProb} % · confiance ${confidence} %. Une seule projection est retenue, Monsieur : celle-là, et elle tient compte de l'extrémité réelle de cette confrontation.`,
+    live
+      ? `**8) Lecture du direct (relevé à la ${live.minute}ᵉ minute)** — score acquis ${curH}-${curA}${
+          live.stats
+            ? ` · xG ${live.stats.xg[0].toFixed(2)}/${live.stats.xg[1].toFixed(2)} · tirs ${live.stats.shots[0]}/${live.stats.shots[1]} (cadrés ${live.stats.onTarget[0]}/${live.stats.onTarget[1]}) · grosses occasions ${live.stats.bigChances[0]}/${live.stats.bigChances[1]} · possession ${live.stats.possession[0]}/${live.stats.possession[1]} % · rouges ${live.stats.reds[0]}/${live.stats.reds[1]}`
+            : " · statistiques détaillées non communiquées"
+        }. Le score en cours n'est jamais recopié : seules les ${Math.round(remain * 90)} minutes restantes sont projetées (${lhLive.toFixed(2)} contre ${laLive.toFixed(2)}) puis additionnées à l'acquis, en fusion avec les 6 matchs de championnat, les H2H, le classement et l'enjeu.`
+      : ``,
+    live ? `` : ``,
+    `**Score exact retenu : ${home.name} ${best.h} - ${best.a} ${away.name}** · probabilité brute ${bestProb} % · confiance ${confidence} %. Une seule projection est retenue, Monsieur : celle-là, et elle tient compte de l'extrémité réelle de cette confrontation${live ? ` ainsi que de tout ce qui a été relevé jusqu'à la ${live.minute}ᵉ minute` : ""}.`,
+
   ].join("\n");
 
   const reasoning =
