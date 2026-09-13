@@ -25,14 +25,14 @@ export const Route = createFileRoute("/api/public/hooks/live-analysis")({
         }
         try {
           const { fetchMatchesByDate, fetchMatchDetails } = await import("@/lib/fotmob.server");
-          const { analyseMatch } = await import("@/lib/jarvis-engine.server");
+          const { analyseMatch, liveReady } = await import("@/lib/jarvis-engine.server");
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
           const date = new Date().toISOString().slice(0, 10);
           const leagues = await fetchMatchesByDate(date);
           const todays = leagues
             .flatMap((l) => l.matches)
-            .filter((m: any) => !m.finished)
+            .filter((m: any) => m.started)
             .slice(0, 25);
 
           const ids = todays.map((m: any) => String(m.id));
@@ -48,6 +48,8 @@ export const Route = createFileRoute("/api/public/hooks/live-analysis")({
             if (done.has(id)) continue;
             try {
               const detail = await fetchMatchDetails(id);
+              // Seuil strict : rien n'est calculé avant la 14,5ᵉ minute de jeu.
+              if (!liveReady(detail)) continue;
               const content = analyseMatch(detail).analysis;
               await supabaseAdmin.from("ai_analyses").upsert(
                 { match_id: id, content, created_at: new Date().toISOString() },
@@ -58,6 +60,7 @@ export const Route = createFileRoute("/api/public/hooks/live-analysis")({
               /* match ignoré */
             }
           }
+
 
           return new Response(JSON.stringify({ ok: true, date, scanned: todays.length, updated }), {
             headers: { "Content-Type": "application/json", ...CORS },
