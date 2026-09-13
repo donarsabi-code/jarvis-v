@@ -161,7 +161,37 @@ export function analyseDuel(
       (1 - gap / 220 - bias - tableGap * 0.09),
   );
 
-  const grid = buildGrid(lh, la);
+  // ---- Fusion passé + présent -------------------------------------------
+  // Le passé (forme championnat, H2H, classement, enjeu) fixe l'espérance de
+  // base. Le direct, lu uniquement à partir de 14,5 minutes, corrige le rythme
+  // réel et projette le reste de la rencontre. Le score déjà inscrit n'est
+  // jamais recopié : il est additionné à la projection des minutes restantes.
+  const live = ctx.live ?? null;
+  const curH = live ? Math.max(0, live.score[0]) : 0;
+  const curA = live ? Math.max(0, live.score[1]) : 0;
+  const remain = live ? Math.max(0.08, (90 - Math.min(88, live.minute)) / 90) : 1;
+
+  const tempo = (side: 0 | 1, base: number): number => {
+    if (!live || !live.stats) return 1;
+    const s = live.stats;
+    const o = side === 0 ? 1 : 0;
+    const per = Math.max(1, live.minute) / 90;
+    const xgRate = s.xg[side] / Math.max(0.05, per); // xG projeté sur 90'
+    const shotWeight = s.shots[side] * 0.05 + s.onTarget[side] * 0.14 + s.bigChances[side] * 0.22;
+    const observed = (xgRate * 0.6 + (shotWeight / Math.max(0.15, per)) * 0.4) || base;
+    const poss = (s.possession[side] - 50) / 100; // ±0,5
+    const men = (s.reds[o] - s.reds[side]) * 0.12; // supériorité numérique
+    // Confiance dans le direct croissante avec le temps joué (max 55 %).
+    const trust = Math.min(0.55, 0.2 + per * 0.5);
+    const blended = base * (1 - trust) + observed * trust;
+    return Math.max(0.55, Math.min(1.9, (blended / Math.max(0.2, base)) * (1 + poss * 0.18 + men)));
+  };
+
+  const lhLive = clampLambda(lh * tempo(0, lh) * remain);
+  const laLive = clampLambda(la * tempo(1, la) * remain);
+
+  const grid = buildGrid(live ? lhLive : lh, live ? laLive : la);
+
 
   let pH = 0;
   let pD = 0;
