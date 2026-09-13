@@ -105,6 +105,23 @@ function volatility(form: FormItem[]): number {
   return Math.min(1, flips / (seq.length - 1));
 }
 
+export type LiveCtx = {
+  minute: number;
+  score: [number, number];
+  stats: {
+    possession: [number, number];
+    shots: [number, number];
+    onTarget: [number, number];
+    xg: [number, number];
+    corners: [number, number];
+    bigChances: [number, number];
+    reds: [number, number];
+  } | null;
+};
+
+/** Seuil d'activation de la lecture du direct : 14,5 minutes de jeu. */
+export const LIVE_THRESHOLD = 14.5;
+
 export function analyseDuel(
   home: Side,
   away: Side,
@@ -114,8 +131,10 @@ export function analyseDuel(
     h2h?: [number, number, number];
     h2hCount?: number;
     standings?: { home: TableCtx; away: TableCtx; teams?: number | null };
+    live?: LiveCtx | null;
   } = {},
 ): EngineOutput {
+
   const tmpHome = computeTmp(home.stats, home.form);
   const tmpAway = computeTmp(away.stats, away.form);
   const gap = tmpHome - tmpAway;
@@ -142,7 +161,43 @@ export function analyseDuel(
       (1 - gap / 220 - bias - tableGap * 0.09),
   );
 
-  const grid = buildGrid(lh, la);
+  // ---- Fusion passé + présent -------------------------------------------
+  // Le passé (forme championnat, H2H, classement, enjeu) fixe l'espérance de
+  // base. Le direct, lu uniquement à partir de 14,5 minutes, corrige le rythme
+  // réel et projette le reste de la rencontre. Le score déjà inscrit n'est
+  // jamais recopié : il est additionné à la projection des minutes restantes.
+  const live = ctx.live ?? null;
+  const curH = live ? Math.max(0, live.score[0]) : 0;
+  const curA = live ? Math.max(0, live.score[1]) : 0;
+  const remain = live ? Math.max(0.08, (90 - Math.min(88, live.minute)) / 90) : 1;
+
+  const tempo = (side: 0 | 1, base: number): number => {
+    if (!live || !live.stats) return 1;
+    const s = live.stats;
+    const o = side === 0 ? 1 : 0;
+    const per = Math.max(1, live.minute) / 90;
+    const xgRate = s.xg[side] / Math.max(0.05, per); // xG projeté sur 90'
+    const shotWeight = s.shots[side] * 0.05 + s.onTarget[side] * 0.14 + s.bigChances[side] * 0.22;
+    const observed = (xgRate * 0.6 + (shotWeight / Math.max(0.15, per)) * 0.4) || base;
+    const poss = (s.possession[side] - 50) / 100; // ±0,5
+    const men = (s.reds[o] - s.reds[side]) * 0.12; // supériorité numérique
+    // Confiance dans le direct croissante avec le temps joué (max 55 %).
+    const trust = Math.min(0.55, 0.2 + per * 0.5);
+    const blended = base * (1 - trust) + observed * trust;
+    return Math.max(0.55, Math.min(1.9, (blended / Math.max(0.2, base)) * (1 + poss * 0.18 + men)));
+  };
+
+  const lhLive = clampLambda(lh * tempo(0, lh) * remain);
+  const laLive = clampLambda(la * tempo(1, la) * remain);
+
+  // La grille porte sur les buts restants ; on y ajoute le score déjà acquis
+  // pour raisonner directement en score final.
+  const grid = buildGrid(live ? lhLive : lh, live ? laLive : la).map((g) => ({
+    h: g.h + curH,
+    a: g.a + curA,
+    p: g.p,
+  }));
+
 
   let pH = 0;
   let pD = 0;
@@ -266,7 +321,16 @@ export function analyseDuel(
     ``,
     `**7) Projection** — espérance de buts ${lh.toFixed(2)} contre ${la.toFixed(2)}. Probabilités : ${home.name} ${probs.home} % · nul ${probs.draw} % · ${away.name} ${probs.away} %. Les deux marquent : ${Math.round(bts * 100)} %. Plus de 2,5 buts : ${Math.round(over * 100)} %. Scénarios secondaires écartés après pondération : ${alt.map((g) => `${g.h}-${g.a}`).join(", ")}.`,
     ``,
-    `**Score exact retenu : ${home.name} ${best.h} - ${best.a} ${away.name}** · probabilité brute ${bestProb} % · confiance ${confidence} %. Une seule projection est retenue, Monsieur : celle-là, et elle tient compte de l'extrémité réelle de cette confrontation.`,
+    live
+      ? `**8) Lecture du direct (relevé à la ${live.minute}ᵉ minute)** — score acquis ${curH}-${curA}${
+          live.stats
+            ? ` · xG ${live.stats.xg[0].toFixed(2)}/${live.stats.xg[1].toFixed(2)} · tirs ${live.stats.shots[0]}/${live.stats.shots[1]} (cadrés ${live.stats.onTarget[0]}/${live.stats.onTarget[1]}) · grosses occasions ${live.stats.bigChances[0]}/${live.stats.bigChances[1]} · possession ${live.stats.possession[0]}/${live.stats.possession[1]} % · rouges ${live.stats.reds[0]}/${live.stats.reds[1]}`
+            : " · statistiques détaillées non communiquées"
+        }. Le score en cours n'est jamais recopié : seules les ${Math.round(remain * 90)} minutes restantes sont projetées (${lhLive.toFixed(2)} contre ${laLive.toFixed(2)}) puis additionnées à l'acquis, en fusion avec les 6 matchs de championnat, les H2H, le classement et l'enjeu.`
+      : ``,
+    live ? `` : ``,
+    `**Score exact retenu : ${home.name} ${best.h} - ${best.a} ${away.name}** · probabilité brute ${bestProb} % · confiance ${confidence} %. Une seule projection est retenue, Monsieur : celle-là, et elle tient compte de l'extrémité réelle de cette confrontation${live ? ` ainsi que de tout ce qui a été relevé jusqu'à la ${live.minute}ᵉ minute` : ""}.`,
+
   ].join("\n");
 
   const reasoning =
@@ -288,7 +352,22 @@ export function analyseDuel(
   };
 }
 
+/** Minute de jeu exploitable, ou null si le direct n'est pas lisible. */
+export function liveMinuteOf(detail: MatchDetail): number | null {
+  if (!detail.started) return null;
+  if (detail.finished) return 90;
+  return detail.live.minute ?? null;
+}
+
+/** Le direct a-t-il atteint le seuil des 14,5 minutes de jeu ? */
+export function liveReady(detail: MatchDetail): boolean {
+  const m = liveMinuteOf(detail);
+  return m != null && m >= LIVE_THRESHOLD;
+}
+
 export function analyseMatch(detail: MatchDetail): EngineOutput {
+  const minute = liveMinuteOf(detail);
+  const useLive = minute != null && minute >= LIVE_THRESHOLD;
   return analyseDuel(
     { name: detail.home.name, stats: detail.stats.home, form: detail.form.home },
     { name: detail.away.name, stats: detail.stats.away, form: detail.form.away },
@@ -302,6 +381,14 @@ export function analyseMatch(detail: MatchDetail): EngineOutput {
         away: detail.standings.away,
         teams: detail.standings.teams,
       },
+      live: useLive
+        ? {
+            minute: minute!,
+            score: [detail.score.home ?? 0, detail.score.away ?? 0],
+            stats: detail.liveStats,
+          }
+        : null,
     },
   );
 }
+

@@ -1,6 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
 
-/** AI match analysis — gratuite et illimitée, sans compte. */
+/**
+ * Analyse JARVIS — gratuite et illimitée, sans compte.
+ * Règle absolue : l'analyse n'est calculée et stockée qu'à partir de la
+ * 14,5ᵉ minute de jeu. Avant ce seuil, les données sont collectées mais
+ * aucune prédiction n'est émise. Une fois calculée, elle est figée.
+ */
 export const getAiMatchAnalysis = createServerFn({ method: "POST" })
   .inputValidator((matchId: string) => {
     if (!/^\d+$/.test(matchId)) throw new Error("Invalid match id");
@@ -15,26 +20,41 @@ export const getAiMatchAnalysis = createServerFn({ method: "POST" })
       .maybeSingle();
 
     const { fetchMatchDetails } = await import("./fotmob.server");
-    const { analyseMatch } = await import("./jarvis-engine.server");
+    const { analyseMatch, liveMinuteOf, LIVE_THRESHOLD } = await import("./jarvis-engine.server");
     const detail = await fetchMatchDetails(data);
+    const minute = liveMinuteOf(detail);
 
-    // Prédiction historique unique : figée dès qu'elle est calculée, jamais
-    // recalculée à partir du score en direct.
+    // Prédiction unique : figée dès qu'elle a été calculée.
     if (cached.data) {
-      return { content: cached.data.content, locked: false as const, minute: null, message: null, degraded: false as const };
+      return { content: cached.data.content, locked: false as const, minute, message: null, degraded: false as const };
     }
 
-    // Moteur JARVIS local: gratuit, illimité, aucun crédit consommé.
-    // Lecture purement historique : forme championnat, classement, enjeu, H2H.
+    if (minute == null || minute < LIVE_THRESHOLD) {
+      const played = minute == null ? "Le coup d'envoi n'a pas encore été donné" : `Nous en sommes à la ${minute}ᵉ minute`;
+      return {
+        content: null,
+        locked: true as const,
+        minute,
+        message:
+          `Cher Monsieur, je me nomme JARVIS, créé par l'architecte JORDAN. ${played}. ` +
+          `Je collecte en ce moment même le direct, les 6 derniers matchs de championnat de chaque équipe, leurs 6 confrontations directes, l'enjeu et la gestion du rythme dans leur championnat. ` +
+          `Veuillez patienter jusqu'à la 14,5ᵉ minute de jeu, puis revenir lancer l'analyse : je vous livrerai alors la lecture complète et la prédiction de score exact.`,
+        degraded: false as const,
+      };
+    }
+
+    // Moteur JARVIS local : gratuit, illimité, aucun crédit consommé.
+    // Fusion passé (forme championnat, H2H, classement, enjeu) + présent
+    // (direct relevé jusqu'à la minute courante), projeté sur 90 minutes.
     const content = analyseMatch(detail).analysis;
 
     await supabaseAdmin
       .from("ai_analyses")
       .upsert({ match_id: data, content, created_at: new Date().toISOString() }, { onConflict: "match_id" });
 
-    return { content, locked: false as const, minute: null, message: null, degraded: false as const };
-
+    return { content, locked: false as const, minute, message: null, degraded: false as const };
   });
+
 
 /** TMP duel: gratuit et illimité. */
 export const getTmpDuel = createServerFn({ method: "POST" })

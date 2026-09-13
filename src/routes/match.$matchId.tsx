@@ -227,10 +227,12 @@ function AiSection({ matchId }: { matchId: string }) {
         <Bot className="size-4 text-primary" /> Analyse IA 🤖
       </h2>
       <p className="mt-1 text-xs text-muted-foreground">
-        Analyse disponible avant le match : 6 derniers matchs de championnat, classement, enjeu, H2H,
-        forces et faiblesses, puis prédiction unique de score exact. Gratuit et illimité, sans
-        inscription.
+        JARVIS collecte le direct dès le coup d'envoi mais ne livre son analyse qu'à partir de la
+        14,5ᵉ minute de jeu : 6 derniers matchs de championnat, 6 confrontations directes, classement,
+        enjeu, gestion du rythme et données du direct fusionnés en une seule prédiction de score exact.
+        Gratuit et illimité, sans inscription.
       </p>
+
 
 
       {content ? (
