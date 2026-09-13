@@ -190,7 +190,13 @@ export function analyseDuel(
   const lhLive = clampLambda(lh * tempo(0, lh) * remain);
   const laLive = clampLambda(la * tempo(1, la) * remain);
 
-  const grid = buildGrid(live ? lhLive : lh, live ? laLive : la);
+  // La grille porte sur les buts restants ; on y ajoute le score déjà acquis
+  // pour raisonner directement en score final.
+  const grid = buildGrid(live ? lhLive : lh, live ? laLive : la).map((g) => ({
+    h: g.h + curH,
+    a: g.a + curA,
+    p: g.p,
+  }));
 
 
   let pH = 0;
