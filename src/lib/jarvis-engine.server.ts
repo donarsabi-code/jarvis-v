@@ -105,6 +105,23 @@ function volatility(form: FormItem[]): number {
   return Math.min(1, flips / (seq.length - 1));
 }
 
+export type LiveCtx = {
+  minute: number;
+  score: [number, number];
+  stats: {
+    possession: [number, number];
+    shots: [number, number];
+    onTarget: [number, number];
+    xg: [number, number];
+    corners: [number, number];
+    bigChances: [number, number];
+    reds: [number, number];
+  } | null;
+};
+
+/** Seuil d'activation de la lecture du direct : 14,5 minutes de jeu. */
+export const LIVE_THRESHOLD = 14.5;
+
 export function analyseDuel(
   home: Side,
   away: Side,
@@ -114,8 +131,10 @@ export function analyseDuel(
     h2h?: [number, number, number];
     h2hCount?: number;
     standings?: { home: TableCtx; away: TableCtx; teams?: number | null };
+    live?: LiveCtx | null;
   } = {},
 ): EngineOutput {
+
   const tmpHome = computeTmp(home.stats, home.form);
   const tmpAway = computeTmp(away.stats, away.form);
   const gap = tmpHome - tmpAway;
