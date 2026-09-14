@@ -32,7 +32,7 @@ export const Route = createFileRoute("/api/public/hooks/live-analysis")({
           const leagues = await fetchMatchesByDate(date);
           const todays = leagues
             .flatMap((l) => l.matches)
-            .filter((m: any) => m.started)
+            .filter((m: any) => m.started && !m.finished)
             .slice(0, 25);
 
           const ids = todays.map((m: any) => String(m.id));

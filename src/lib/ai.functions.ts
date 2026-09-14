@@ -29,6 +29,19 @@ export const getAiMatchAnalysis = createServerFn({ method: "POST" })
       return { content: cached.data.content, locked: false as const, minute, message: null, degraded: false as const };
     }
 
+    // Sans capture réalisée pendant le direct, un match terminé ne doit jamais
+    // produire une pseudo-prédiction reconstruite à partir de son score final.
+    if (detail.finished) {
+      return {
+        content: null,
+        locked: true as const,
+        minute: null,
+        message:
+          "Monsieur, ce match est terminé et aucune projection JARVIS n'avait été figée pendant le direct. Je refuse donc de transformer le résultat final en fausse prédiction.",
+        degraded: false as const,
+      };
+    }
+
     if (minute == null || minute < LIVE_THRESHOLD) {
       const played = minute == null ? "Le coup d'envoi n'a pas encore été donné" : `Nous en sommes à la ${minute}ᵉ minute`;
       return {
@@ -44,8 +57,8 @@ export const getAiMatchAnalysis = createServerFn({ method: "POST" })
     }
 
     // Moteur JARVIS local : gratuit, illimité, aucun crédit consommé.
-    // Fusion passé (forme championnat, H2H, classement, enjeu) + présent
-    // (direct relevé jusqu'à la minute courante), projeté sur 90 minutes.
+    // Fusion passé + signaux du direct, sans utiliser le score courant comme
+    // plancher de sortie. Le résultat est ensuite figé définitivement.
     const content = analyseMatch(detail).analysis;
 
     await supabaseAdmin
