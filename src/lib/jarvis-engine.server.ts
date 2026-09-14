@@ -383,7 +383,7 @@ export function analyseMatch(detail: MatchDetail): EngineOutput {
       },
       live: useLive
         ? {
-            minute: minute!,
+            minute,
             score: [detail.score.home ?? 0, detail.score.away ?? 0],
             stats: detail.liveStats,
           }
