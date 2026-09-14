@@ -163,22 +163,28 @@ export function analyseDuel(
 
   // ---- Fusion passé + présent -------------------------------------------
   // Le passé (forme championnat, H2H, classement, enjeu) fixe l'espérance de
-  // base. Le direct, lu uniquement à partir de 14,5 minutes, corrige le rythme
-  // réel et projette le reste de la rencontre. Le score déjà inscrit n'est
-  // jamais recopié : il est additionné à la projection des minutes restantes.
+  // base. Le direct, lu uniquement à partir de 14,5 minutes, sert de signal
+  // de rythme. Le score observé n'entre jamais comme plancher dans la grille :
+  // le modèle conserve une projection indépendante sur l'ensemble du match.
   const live = ctx.live ?? null;
   const curH = live ? Math.max(0, live.score[0]) : 0;
   const curA = live ? Math.max(0, live.score[1]) : 0;
-  const remain = live ? Math.max(0.08, (90 - Math.min(88, live.minute)) / 90) : 1;
 
   const tempo = (side: 0 | 1, base: number): number => {
-    if (!live || !live.stats) return 1;
+    if (!live) return 1;
+    const per = Math.max(LIVE_THRESHOLD, live.minute) / 90;
+    const goals = live.score[side];
+    const goalPace = Math.min(3.2, goals / Math.max(0.2, per));
+    if (!live.stats) {
+      const goalSignal = base * 0.82 + goalPace * 0.18;
+      return Math.max(0.7, Math.min(1.45, goalSignal / Math.max(0.2, base)));
+    }
     const s = live.stats;
     const o = side === 0 ? 1 : 0;
-    const per = Math.max(1, live.minute) / 90;
     const xgRate = s.xg[side] / Math.max(0.05, per); // xG projeté sur 90'
     const shotWeight = s.shots[side] * 0.05 + s.onTarget[side] * 0.14 + s.bigChances[side] * 0.22;
-    const observed = (xgRate * 0.6 + (shotWeight / Math.max(0.15, per)) * 0.4) || base;
+    const chanceRate = shotWeight / Math.max(0.15, per);
+    const observed = xgRate * 0.5 + chanceRate * 0.35 + goalPace * 0.15 || base;
     const poss = (s.possession[side] - 50) / 100; // ±0,5
     const men = (s.reds[o] - s.reds[side]) * 0.12; // supériorité numérique
     // Confiance dans le direct croissante avec le temps joué (max 55 %).
@@ -187,16 +193,11 @@ export function analyseDuel(
     return Math.max(0.55, Math.min(1.9, (blended / Math.max(0.2, base)) * (1 + poss * 0.18 + men)));
   };
 
-  const lhLive = clampLambda(lh * tempo(0, lh) * remain);
-  const laLive = clampLambda(la * tempo(1, la) * remain);
+  const lhLive = clampLambda(lh * tempo(0, lh));
+  const laLive = clampLambda(la * tempo(1, la));
 
-  // La grille porte sur les buts restants ; on y ajoute le score déjà acquis
-  // pour raisonner directement en score final.
-  const grid = buildGrid(live ? lhLive : lh, live ? laLive : la).map((g) => ({
-    h: g.h + curH,
-    a: g.a + curA,
-    p: g.p,
-  }));
+  // Projection indépendante du total final : aucune addition du score live.
+  const grid = buildGrid(live ? lhLive : lh, live ? laLive : la);
 
 
   let pH = 0;
@@ -322,11 +323,11 @@ export function analyseDuel(
     `**7) Projection** — espérance de buts ${lh.toFixed(2)} contre ${la.toFixed(2)}. Probabilités : ${home.name} ${probs.home} % · nul ${probs.draw} % · ${away.name} ${probs.away} %. Les deux marquent : ${Math.round(bts * 100)} %. Plus de 2,5 buts : ${Math.round(over * 100)} %. Scénarios secondaires écartés après pondération : ${alt.map((g) => `${g.h}-${g.a}`).join(", ")}.`,
     ``,
     live
-      ? `**8) Lecture du direct (relevé à la ${live.minute}ᵉ minute)** — score acquis ${curH}-${curA}${
+      ? `**8) Lecture du direct (relevé à la ${live.minute}ᵉ minute)** — ${
           live.stats
             ? ` · xG ${live.stats.xg[0].toFixed(2)}/${live.stats.xg[1].toFixed(2)} · tirs ${live.stats.shots[0]}/${live.stats.shots[1]} (cadrés ${live.stats.onTarget[0]}/${live.stats.onTarget[1]}) · grosses occasions ${live.stats.bigChances[0]}/${live.stats.bigChances[1]} · possession ${live.stats.possession[0]}/${live.stats.possession[1]} % · rouges ${live.stats.reds[0]}/${live.stats.reds[1]}`
             : " · statistiques détaillées non communiquées"
-        }. Le score en cours n'est jamais recopié : seules les ${Math.round(remain * 90)} minutes restantes sont projetées (${lhLive.toFixed(2)} contre ${laLive.toFixed(2)}) puis additionnées à l'acquis, en fusion avec les 6 matchs de championnat, les H2H, le classement et l'enjeu.`
+        }. Le résultat affiché n'est ni repris ni additionné : il sert uniquement d'indice de rythme avec les occasions créées. La projection complète (${lhLive.toFixed(2)} contre ${laLive.toFixed(2)}) reste fondée sur les 6 matchs de championnat, les H2H, le classement et l'enjeu.`
       : ``,
     live ? `` : ``,
     `**Score exact retenu : ${home.name} ${best.h} - ${best.a} ${away.name}** · probabilité brute ${bestProb} % · confiance ${confidence} %. Une seule projection est retenue, Monsieur : celle-là, et elle tient compte de l'extrémité réelle de cette confrontation${live ? ` ainsi que de tout ce qui a été relevé jusqu'à la ${live.minute}ᵉ minute` : ""}.`,
@@ -354,15 +355,14 @@ export function analyseDuel(
 
 /** Minute de jeu exploitable, ou null si le direct n'est pas lisible. */
 export function liveMinuteOf(detail: MatchDetail): number | null {
-  if (!detail.started) return null;
-  if (detail.finished) return 90;
+  if (!detail.started || detail.finished || !detail.live.ongoing) return null;
   return detail.live.minute ?? null;
 }
 
 /** Le direct a-t-il atteint le seuil des 14,5 minutes de jeu ? */
 export function liveReady(detail: MatchDetail): boolean {
   const m = liveMinuteOf(detail);
-  return m != null && m >= LIVE_THRESHOLD;
+  return !detail.finished && detail.live.ongoing && m != null && m >= LIVE_THRESHOLD;
 }
 
 export function analyseMatch(detail: MatchDetail): EngineOutput {
