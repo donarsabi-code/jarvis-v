@@ -4,10 +4,15 @@
  * un modèle de Poisson pondéré, et rédige l'analyse en français, style JARVIS.
  */
 import type { FormItem, MatchDetail, TeamStats } from "./fotmob.server";
+import type { BetclanData } from "./betclan.server";
 
 export type EngineOutput = {
   tmpHome: number;
   tmpAway: number;
+  /** Points TMP officiels BetClan (null si la source n'a pas été atteinte). */
+  tmpPointsHome: number | null;
+  tmpPointsAway: number | null;
+  betclanUrl: string | null;
   home: number;
   away: number;
   confidence: number;
