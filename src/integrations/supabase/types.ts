@@ -35,6 +35,39 @@ export type Database = {
         }
         Relationships: []
       }
+      betclan_cache: {
+        Row: {
+          away_team: string
+          home_team: string
+          pair_key: string
+          payload: Json
+          scraped_at: string
+          tmp_away: number | null
+          tmp_home: number | null
+          url: string
+        }
+        Insert: {
+          away_team: string
+          home_team: string
+          pair_key: string
+          payload: Json
+          scraped_at?: string
+          tmp_away?: number | null
+          tmp_home?: number | null
+          url: string
+        }
+        Update: {
+          away_team?: string
+          home_team?: string
+          pair_key?: string
+          payload?: Json
+          scraped_at?: string
+          tmp_away?: number | null
+          tmp_home?: number | null
+          url?: string
+        }
+        Relationships: []
+      }
       daily_predictions: {
         Row: {
           away_logo: string | null
