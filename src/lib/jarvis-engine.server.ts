@@ -306,12 +306,15 @@ export function analyseDuel(
   const alt = scored.slice(1, 4);
   const bestProb = Math.round(best.p * 1000) / 10;
 
+  const bestOutcome = best.h > best.a ? "H" : best.h === best.a ? "D" : "A";
+  const align = bc ? (bcSide && bestOutcome === bcSide ? 7 : bcSide ? -4 : 3) : 0;
+
   const topOutcome = Math.max(probs.home, probs.draw, probs.away);
   const confidence = Math.max(
     35,
     Math.min(
-      93,
-      Math.round(topOutcome * 0.62 + abs * 0.5 + stake * 8 + best.p * 100 - chaos * 9),
+      96,
+      Math.round(topOutcome * 0.62 + abs * 0.5 + stake * 8 + best.p * 100 - chaos * 9 + align),
     ),
   );
 
