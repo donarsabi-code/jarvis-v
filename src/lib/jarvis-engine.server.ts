@@ -137,11 +137,23 @@ export function analyseDuel(
     h2hCount?: number;
     standings?: { home: TableCtx; away: TableCtx; teams?: number | null };
     live?: LiveCtx | null;
+    /** Relevé TMP officiel BetClan (source de vérité du momentum). */
+    betclan?: BetclanData | null;
   } = {},
 ): EngineOutput {
 
-  const tmpHome = computeTmp(home.stats, home.form);
-  const tmpAway = computeTmp(away.stats, away.form);
+  const bc = ctx.betclan ?? null;
+
+  // ---- TMP : la notion officielle BetClan prime sur l'estimation locale ----
+  // rel ∈ [-1, 1] : déséquilibre de momentum mesuré sur les points TMP réels.
+  const rel = bc && bc.tmpHome + bc.tmpAway > 0
+    ? (bc.tmpHome - bc.tmpAway) / (bc.tmpHome + bc.tmpAway)
+    : 0;
+  const localHome = computeTmp(home.stats, home.form);
+  const localAway = computeTmp(away.stats, away.form);
+  const scaled = (r: number) => Math.max(1, Math.min(100, Math.round(50 + 70 * r)));
+  const tmpHome = bc ? Math.round(localHome * 0.35 + scaled(rel) * 0.65) : localHome;
+  const tmpAway = bc ? Math.round(localAway * 0.35 + scaled(-rel) * 0.65) : localAway;
   const gap = tmpHome - tmpAway;
   const abs = Math.abs(gap);
   const bias = ctx.h2h ? h2hBias(ctx.h2h) : 0;
@@ -155,15 +167,24 @@ export function analyseDuel(
   const volA = volatility(away.form);
   const chaos = (volH + volA) / 2; // 0 = série stable, 1 = totalement imprévisible
 
+  // Espérance de buts : moyenne des 6 matchs FotMob fusionnée avec les moyennes
+  // BetClan sur 15 matchs, puis inclinée par le déséquilibre TMP réel.
+  const mix = (fot: number, bcv: number | undefined | null) =>
+    bcv != null && bcv > 0 ? fot * 0.55 + bcv * 0.45 : fot;
+  const baseH = mix(
+    (home.stats.avgScored + away.stats.avgConceded) / 2,
+    bc?.home && bc?.away ? (bc.home.avgScored + bc.away.avgConceded) / 2 : null,
+  );
+  const baseA = mix(
+    (away.stats.avgScored + home.stats.avgConceded) / 2,
+    bc?.home && bc?.away ? (bc.away.avgScored + bc.home.avgConceded) / 2 : null,
+  );
+
   const lh = clampLambda(
-    ((home.stats.avgScored + away.stats.avgConceded) / 2) *
-      HOME_EDGE *
-      (1 + gap / 220 + bias + tableGap * 0.09),
+    baseH * HOME_EDGE * (1 + gap / 220 + bias + tableGap * 0.09 + rel * 0.3),
   );
   const la = clampLambda(
-    ((away.stats.avgScored + home.stats.avgConceded) / 2) *
-      AWAY_MALUS *
-      (1 - gap / 220 - bias - tableGap * 0.09),
+    baseA * AWAY_MALUS * (1 - gap / 220 - bias - tableGap * 0.09 - rel * 0.3),
   );
 
   // ---- Fusion passé + présent -------------------------------------------
