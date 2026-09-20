@@ -255,7 +255,17 @@ export function analyseDuel(
       : "D";
   const appetite = (lh + la) / 2;
 
-  const scored = grid.slice(0, 12).map((g) => {
+  // Verdict algorithmique BetClan : vainqueur, BTTS, total de buts et score
+  // exact, avec leurs probabilités. Aucun score n'est exclu d'office : chaque
+  // case de la grille est simplement repondérée par ces convictions.
+  const v = bc?.verdict ?? null;
+  const bcSide = v?.winner
+    ? normLite(v.winner) === normLite(bc!.homeName) || normLite(v.winner) === normLite(home.name)
+      ? "H"
+      : "A"
+    : null;
+
+  const scored = grid.slice(0, 24).map((g) => {
     const outcome = g.h > g.a ? "H" : g.h === g.a ? "D" : "A";
     let w = g.p;
     if (outcome === favourite) w *= 1.35;
@@ -266,6 +276,29 @@ export function analyseDuel(
     w *= 1 + (appetite - 1.2) * 0.18 * (g.h + g.a);
     // Séries instables : le nul et les scénarios secondaires reprennent du poids.
     if (chaos > 0.6 && outcome === "D") w *= 1.12;
+
+    if (v) {
+      if (bcSide && v.winnerPct != null) {
+        const force = (v.winnerPct - 33) / 100; // conviction relative
+        if (outcome === bcSide) w *= 1 + Math.max(0, force) * 0.9;
+        else if (outcome !== "D") w *= 1 - Math.max(0, force) * 0.45;
+      }
+      if (v.btts && v.bttsPct != null) {
+        const yes = g.h > 0 && g.a > 0;
+        const f = (v.bttsPct - 50) / 100;
+        w *= 1 + (yes === (v.btts === "Oui") ? Math.max(0, f) * 0.8 : -Math.max(0, f) * 0.5);
+      }
+      if (v.totals && v.totalsPct != null) {
+        const over = g.h + g.a > 2;
+        const f = (v.totalsPct - 50) / 100;
+        w *= 1 + (over === (v.totals === "Plus") ? Math.max(0, f) * 0.8 : -Math.max(0, f) * 0.5);
+      }
+      if (v.correctScore && v.correctScorePct != null) {
+        if (g.h === v.correctScore[0] && g.a === v.correctScore[1]) {
+          w *= 1 + (v.correctScorePct / 100) * 1.1;
+        }
+      }
+    }
     return { ...g, w };
   });
   scored.sort((x, y) => y.w - x.w);
