@@ -4,10 +4,15 @@
  * un modèle de Poisson pondéré, et rédige l'analyse en français, style JARVIS.
  */
 import type { FormItem, MatchDetail, TeamStats } from "./fotmob.server";
+import type { BetclanData } from "./betclan.server";
 
 export type EngineOutput = {
   tmpHome: number;
   tmpAway: number;
+  /** Points TMP officiels BetClan (null si la source n'a pas été atteinte). */
+  tmpPointsHome: number | null;
+  tmpPointsAway: number | null;
+  betclanUrl: string | null;
   home: number;
   away: number;
   confidence: number;
@@ -132,11 +137,23 @@ export function analyseDuel(
     h2hCount?: number;
     standings?: { home: TableCtx; away: TableCtx; teams?: number | null };
     live?: LiveCtx | null;
+    /** Relevé TMP officiel BetClan (source de vérité du momentum). */
+    betclan?: BetclanData | null;
   } = {},
 ): EngineOutput {
 
-  const tmpHome = computeTmp(home.stats, home.form);
-  const tmpAway = computeTmp(away.stats, away.form);
+  const bc = ctx.betclan ?? null;
+
+  // ---- TMP : la notion officielle BetClan prime sur l'estimation locale ----
+  // rel ∈ [-1, 1] : déséquilibre de momentum mesuré sur les points TMP réels.
+  const rel = bc && bc.tmpHome + bc.tmpAway > 0
+    ? (bc.tmpHome - bc.tmpAway) / (bc.tmpHome + bc.tmpAway)
+    : 0;
+  const localHome = computeTmp(home.stats, home.form);
+  const localAway = computeTmp(away.stats, away.form);
+  const scaled = (r: number) => Math.max(1, Math.min(100, Math.round(50 + 70 * r)));
+  const tmpHome = bc ? Math.round(localHome * 0.35 + scaled(rel) * 0.65) : localHome;
+  const tmpAway = bc ? Math.round(localAway * 0.35 + scaled(-rel) * 0.65) : localAway;
   const gap = tmpHome - tmpAway;
   const abs = Math.abs(gap);
   const bias = ctx.h2h ? h2hBias(ctx.h2h) : 0;
@@ -150,15 +167,24 @@ export function analyseDuel(
   const volA = volatility(away.form);
   const chaos = (volH + volA) / 2; // 0 = série stable, 1 = totalement imprévisible
 
+  // Espérance de buts : moyenne des 6 matchs FotMob fusionnée avec les moyennes
+  // BetClan sur 15 matchs, puis inclinée par le déséquilibre TMP réel.
+  const mix = (fot: number, bcv: number | undefined | null) =>
+    bcv != null && bcv > 0 ? fot * 0.55 + bcv * 0.45 : fot;
+  const baseH = mix(
+    (home.stats.avgScored + away.stats.avgConceded) / 2,
+    bc?.home && bc?.away ? (bc.home.avgScored + bc.away.avgConceded) / 2 : null,
+  );
+  const baseA = mix(
+    (away.stats.avgScored + home.stats.avgConceded) / 2,
+    bc?.home && bc?.away ? (bc.away.avgScored + bc.home.avgConceded) / 2 : null,
+  );
+
   const lh = clampLambda(
-    ((home.stats.avgScored + away.stats.avgConceded) / 2) *
-      HOME_EDGE *
-      (1 + gap / 220 + bias + tableGap * 0.09),
+    baseH * HOME_EDGE * (1 + gap / 220 + bias + tableGap * 0.09 + rel * 0.3),
   );
   const la = clampLambda(
-    ((away.stats.avgScored + home.stats.avgConceded) / 2) *
-      AWAY_MALUS *
-      (1 - gap / 220 - bias - tableGap * 0.09),
+    baseA * AWAY_MALUS * (1 - gap / 220 - bias - tableGap * 0.09 - rel * 0.3),
   );
 
   // ---- Fusion passé + présent -------------------------------------------
@@ -229,7 +255,17 @@ export function analyseDuel(
       : "D";
   const appetite = (lh + la) / 2;
 
-  const scored = grid.slice(0, 12).map((g) => {
+  // Verdict algorithmique BetClan : vainqueur, BTTS, total de buts et score
+  // exact, avec leurs probabilités. Aucun score n'est exclu d'office : chaque
+  // case de la grille est simplement repondérée par ces convictions.
+  const v = bc?.verdict ?? null;
+  const bcSide = v?.winner
+    ? normLite(v.winner) === normLite(bc!.homeName) || normLite(v.winner) === normLite(home.name)
+      ? "H"
+      : "A"
+    : null;
+
+  const scored = grid.slice(0, 24).map((g) => {
     const outcome = g.h > g.a ? "H" : g.h === g.a ? "D" : "A";
     let w = g.p;
     if (outcome === favourite) w *= 1.35;
@@ -240,6 +276,29 @@ export function analyseDuel(
     w *= 1 + (appetite - 1.2) * 0.18 * (g.h + g.a);
     // Séries instables : le nul et les scénarios secondaires reprennent du poids.
     if (chaos > 0.6 && outcome === "D") w *= 1.12;
+
+    if (v) {
+      if (bcSide && v.winnerPct != null) {
+        const force = (v.winnerPct - 33) / 100; // conviction relative
+        if (outcome === bcSide) w *= 1 + Math.max(0, force) * 0.9;
+        else if (outcome !== "D") w *= 1 - Math.max(0, force) * 0.45;
+      }
+      if (v.btts && v.bttsPct != null) {
+        const yes = g.h > 0 && g.a > 0;
+        const f = (v.bttsPct - 50) / 100;
+        w *= 1 + (yes === (v.btts === "Oui") ? Math.max(0, f) * 0.8 : -Math.max(0, f) * 0.5);
+      }
+      if (v.totals && v.totalsPct != null) {
+        const over = g.h + g.a > 2;
+        const f = (v.totalsPct - 50) / 100;
+        w *= 1 + (over === (v.totals === "Plus") ? Math.max(0, f) * 0.8 : -Math.max(0, f) * 0.5);
+      }
+      if (v.correctScore && v.correctScorePct != null) {
+        if (g.h === v.correctScore[0] && g.a === v.correctScore[1]) {
+          w *= 1 + (v.correctScorePct / 100) * 1.1;
+        }
+      }
+    }
     return { ...g, w };
   });
   scored.sort((x, y) => y.w - x.w);
@@ -247,12 +306,15 @@ export function analyseDuel(
   const alt = scored.slice(1, 4);
   const bestProb = Math.round(best.p * 1000) / 10;
 
+  const bestOutcome = best.h > best.a ? "H" : best.h === best.a ? "D" : "A";
+  const align = bc ? (bcSide && bestOutcome === bcSide ? 7 : bcSide ? -4 : 3) : 0;
+
   const topOutcome = Math.max(probs.home, probs.draw, probs.away);
   const confidence = Math.max(
     35,
     Math.min(
-      93,
-      Math.round(topOutcome * 0.62 + abs * 0.5 + stake * 8 + best.p * 100 - chaos * 9),
+      96,
+      Math.round(topOutcome * 0.62 + abs * 0.5 + stake * 8 + best.p * 100 - chaos * 9 + align),
     ),
   );
 
