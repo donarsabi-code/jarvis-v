@@ -4,7 +4,8 @@
  * un modèle de Poisson pondéré, et rédige l'analyse en français, style JARVIS.
  */
 import type { FormItem, MatchDetail, TeamStats } from "./fotmob.server";
-import type { BetclanData } from "./betclan.server";
+import { normName, type BetclanData } from "./betclan.server";
+function sameTeam(a: string, b: string): boolean { const x = normName(a), y = normName(b); return !!x && !!y && (x.includes(y) || y.includes(x) || x.split(" ")[0] === y.split(" ")[0]); }
 
 export type EngineOutput = {
   tmpHome: number;
@@ -13,6 +14,7 @@ export type EngineOutput = {
   tmpPointsHome: number | null;
   tmpPointsAway: number | null;
   betclanUrl: string | null;
+  scoreRange: string[];
   home: number;
   away: number;
   confidence: number;
@@ -457,7 +459,7 @@ export function liveReady(detail: MatchDetail): boolean {
   return !detail.finished && detail.live.ongoing && m != null && m >= LIVE_THRESHOLD;
 }
 
-export function analyseMatch(detail: MatchDetail): EngineOutput {
+export function analyseMatch(detail: MatchDetail, betclan: BetclanData | null = null): EngineOutput {
   const minute = liveMinuteOf(detail);
   const useLive = minute != null && minute >= LIVE_THRESHOLD;
   return analyseDuel(
@@ -466,6 +468,7 @@ export function analyseMatch(detail: MatchDetail): EngineOutput {
     {
       league: detail.league,
       stadium: detail.stadium,
+      betclan,
       h2h: detail.h2h.summary,
       h2hCount: detail.h2h.matches.length,
       standings: {

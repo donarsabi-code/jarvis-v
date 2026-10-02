@@ -59,7 +59,9 @@ export const getAiMatchAnalysis = createServerFn({ method: "POST" })
     // Moteur JARVIS local : gratuit, illimité, aucun crédit consommé.
     // Fusion passé + signaux du direct, sans utiliser le score courant comme
     // plancher de sortie. Le résultat est ensuite figé définitivement.
-    const content = analyseMatch(detail).analysis;
+    const { fetchBetclan } = await import("./betclan.server");
+    const bc = await fetchBetclan(detail.home.name, detail.away.name).catch(() => null);
+    const content = analyseMatch(detail, bc).analysis;
 
     await supabaseAdmin
       .from("ai_analyses")
@@ -87,6 +89,8 @@ export const getTmpDuel = createServerFn({ method: "POST" })
         `Équipe introuvable: ${!h ? data.home : data.away}. Vérifiez l'orthographe du club.`,
       );
     }
+    const { fetchBetclan } = await import("./betclan.server");
+    const bcP = fetchBetclan(h.name, a.name).catch(() => null);
     const [hf, af] = await Promise.all([
       fetchTeamForm(h.id, h.name).catch(() => null),
       fetchTeamForm(a.id, a.name).catch(() => null),
@@ -96,6 +100,7 @@ export const getTmpDuel = createServerFn({ method: "POST" })
     const result = analyseDuel(
       { name: h.name, stats: hf.stats, form: hf.form },
       { name: a.name, stats: af.stats, form: af.form },
+      { betclan: await bcP },
     );
 
     return {
