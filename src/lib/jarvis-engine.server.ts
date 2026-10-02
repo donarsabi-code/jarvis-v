@@ -461,7 +461,7 @@ export function liveReady(detail: MatchDetail): boolean {
 
 export function analyseMatch(detail: MatchDetail, betclan: BetclanData | null = null): EngineOutput {
   const minute = liveMinuteOf(detail);
-  const useLive = minute != null && minute >= LIVE_THRESHOLD;
+  const useLive = false && minute != null;
   return analyseDuel(
     { name: detail.home.name, stats: detail.stats.home, form: detail.form.home },
     { name: detail.away.name, stats: detail.stats.away, form: detail.form.away },

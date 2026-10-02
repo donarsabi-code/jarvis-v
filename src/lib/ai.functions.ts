@@ -20,7 +20,7 @@ export const getAiMatchAnalysis = createServerFn({ method: "POST" })
       .maybeSingle();
 
     const { fetchMatchDetails } = await import("./fotmob.server");
-    const { analyseMatch, liveMinuteOf, LIVE_THRESHOLD } = await import("./jarvis-engine.server");
+    const { analyseMatch, liveMinuteOf } = await import("./jarvis-engine.server");
     const detail = await fetchMatchDetails(data);
     const minute = liveMinuteOf(detail);
 
@@ -29,32 +29,6 @@ export const getAiMatchAnalysis = createServerFn({ method: "POST" })
       return { content: cached.data.content, locked: false as const, minute, message: null, degraded: false as const };
     }
 
-    // Sans capture réalisée pendant le direct, un match terminé ne doit jamais
-    // produire une pseudo-prédiction reconstruite à partir de son score final.
-    if (detail.finished) {
-      return {
-        content: null,
-        locked: true as const,
-        minute: null,
-        message:
-          "Monsieur, ce match est terminé et aucune projection JARVIS n'avait été figée pendant le direct. Je refuse donc de transformer le résultat final en fausse prédiction.",
-        degraded: false as const,
-      };
-    }
-
-    if (minute == null || minute < LIVE_THRESHOLD) {
-      const played = minute == null ? "Le coup d'envoi n'a pas encore été donné" : `Nous en sommes à la ${minute}ᵉ minute`;
-      return {
-        content: null,
-        locked: true as const,
-        minute,
-        message:
-          `Cher Monsieur, je me nomme JARVIS, créé par l'architecte JORDAN. ${played}. ` +
-          `Je collecte en ce moment même le direct, les 6 derniers matchs de championnat de chaque équipe, leurs 6 confrontations directes, l'enjeu et la gestion du rythme dans leur championnat. ` +
-          `Veuillez patienter jusqu'à la 14,5ᵉ minute de jeu, puis revenir lancer l'analyse : je vous livrerai alors la lecture complète et la prédiction de score exact.`,
-        degraded: false as const,
-      };
-    }
 
     // Moteur JARVIS local : gratuit, illimité, aucun crédit consommé.
     // Fusion passé + signaux du direct, sans utiliser le score courant comme
