@@ -195,9 +195,9 @@ function parseTeamStats(lines: string[], start: number): BetclanTeamStats | null
     played: w[1] || 15,
     scored,
     conceded,
-    avgScored: num(at("Moy. Buts Marqués")) ?? (w[1] ? scored / w[1] : 0),
-    avgConceded: num(at("Moy. Buts Concédés")) ?? (w[1] ? conceded / w[1] : 0),
-    over25: num(at("Plus de 2.5")) ?? 0,
+    avgScored: num(at("Moy. Buts Marqués") ?? undefined) ?? (w[1] ? scored / w[1] : 0),
+    avgConceded: num(at("Moy. Buts Concédés") ?? undefined) ?? (w[1] ? conceded / w[1] : 0),
+    over25: num(at("Plus de 2.5") ?? undefined) ?? 0,
   };
 }
 
@@ -335,7 +335,7 @@ export async function fetchBetclan(home: string, away: string): Promise<BetclanD
         away_team: oriented.awayName,
         tmp_home: oriented.tmpHome,
         tmp_away: oriented.tmpAway,
-        payload: oriented as unknown as Record<string, unknown>,
+        payload: oriented as never,
         scraped_at: new Date().toISOString(),
       },
       { onConflict: "pair_key" },

@@ -262,7 +262,7 @@ export function analyseDuel(
   // case de la grille est simplement repondérée par ces convictions.
   const v = bc?.verdict ?? null;
   const bcSide = v?.winner
-    ? normLite(v.winner) === normLite(bc!.homeName) || normLite(v.winner) === normLite(home.name)
+    ? normName(v.winner) === normName(bc!.homeName) || normName(v.winner) === normName(home.name)
       ? "H"
       : "A"
     : null;
