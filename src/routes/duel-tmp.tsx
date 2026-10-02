@@ -88,6 +88,12 @@ function DuelPage() {
                 {result.home} - {result.away}
               </p>
               <p className="text-xs text-muted-foreground">Confiance {result.confidence}%</p>
+              {result.scoreRange.length > 0 && (
+                <p className="text-xs text-primary">Plage : {result.scoreRange.join(" · ")}</p>
+              )}
+              {result.tmpPointsHome != null && (
+                <p className="text-xs text-muted-foreground">TMP BetClan {result.tmpPointsHome} / {result.tmpPointsAway}</p>
+              )}
             </div>
             <Side name={result.awayName} logo={result.awayLogo} tmp={result.tmpAway} />
           </div>
