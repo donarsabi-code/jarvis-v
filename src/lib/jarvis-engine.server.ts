@@ -4,7 +4,8 @@
  * un modèle de Poisson pondéré, et rédige l'analyse en français, style JARVIS.
  */
 import type { FormItem, MatchDetail, TeamStats } from "./fotmob.server";
-import type { BetclanData } from "./betclan.server";
+import { normName, type BetclanData } from "./betclan.server";
+function sameTeam(a: string, b: string): boolean { const x = normName(a), y = normName(b); return !!x && !!y && (x.includes(y) || y.includes(x) || x.split(" ")[0] === y.split(" ")[0]); }
 
 export type EngineOutput = {
   tmpHome: number;
@@ -13,6 +14,7 @@ export type EngineOutput = {
   tmpPointsHome: number | null;
   tmpPointsAway: number | null;
   betclanUrl: string | null;
+  scoreRange: string[];
   home: number;
   away: number;
   confidence: number;
@@ -260,7 +262,7 @@ export function analyseDuel(
   // case de la grille est simplement repondérée par ces convictions.
   const v = bc?.verdict ?? null;
   const bcSide = v?.winner
-    ? normLite(v.winner) === normLite(bc!.homeName) || normLite(v.winner) === normLite(home.name)
+    ? normName(v.winner) === normName(bc!.homeName) || normName(v.winner) === normName(home.name)
       ? "H"
       : "A"
     : null;
@@ -301,9 +303,29 @@ export function analyseDuel(
     }
     return { ...g, w };
   });
+  // ---- Méthode JORDAN : ancrage sur la 3ᵉ (la moins récente) des 3 dernières H2H ----
+  const last3 = (bc?.h2h ?? []).slice(0, 3);
+  const h2hW = last3.filter((m) => (sameTeam(m.home, home.name) ? m.hg > m.ag : m.ag > m.hg)).length;
+  const h2hD = last3.filter((m) => m.hg === m.ag).length;
+  const h2hL = last3.length - h2hW - h2hD;
+  const third = last3.length === 3 ? last3[2]! : null;
+  const anchor: [number, number] | null = third
+    ? sameTeam(third.home, home.name) ? [third.hg, third.ag] : [third.ag, third.hg]
+    : null;
+  if (anchor) {
+    for (const g of scored) {
+      const d = Math.abs(g.h - anchor[0]) + Math.abs(g.a - anchor[1]);
+      const sameRes = Math.sign(g.h - g.a) === Math.sign(anchor[0] - anchor[1]);
+      g.w *= (d === 0 ? 1.45 : d === 1 ? 1.2 : d === 2 ? 1.05 : 0.9) * (sameRes ? 1.1 : 1);
+    }
+  }
   scored.sort((x, y) => y.w - x.w);
   const best = scored[0]!;
   const alt = scored.slice(1, 4);
+  const range = scored
+    .filter((g) => !anchor || Math.abs(g.h - anchor[0]) + Math.abs(g.a - anchor[1]) <= 2)
+    .slice(0, 5)
+    .map((g) => `${g.h}-${g.a}`);
   const bestProb = Math.round(best.p * 1000) / 10;
 
   const bestOutcome = best.h > best.a ? "H" : best.h === best.a ? "D" : "A";
@@ -394,6 +416,12 @@ export function analyseDuel(
     live ? `` : ``,
     `**Score exact retenu : ${home.name} ${best.h} - ${best.a} ${away.name}** · probabilité brute ${bestProb} % · confiance ${confidence} %. Une seule projection est retenue, Monsieur : celle-là, et elle tient compte de l'extrémité réelle de cette confrontation${live ? ` ainsi que de tout ce qui a été relevé jusqu'à la ${live.minute}ᵉ minute` : ""}.`,
 
+    ``,
+    `**Méthode JORDAN — 3 dernières H2H** — ${last3.length ? `${h2hW}V · ${h2hD}N · ${h2hL}D pour ${home.name}` : "aucune H2H BetClan exploitable"}.${third && anchor ? ` Ancrage sur la confrontation la moins récente des trois (${third.date}) : ${home.name} ${anchor[0]}-${anchor[1]} ${away.name}.` : ""}`,
+    ``,
+    `**Forme 15 matchs (BetClan)** — ${bc?.home ? `${home.name} TMP ${bc.tmpHome} pts` : "n/d"} · ${bc?.away ? `${away.name} TMP ${bc.tmpAway} pts` : "n/d"}.`,
+    ``,
+    `**Score exact retenu : ${best.h}-${best.a}** · **Plage de score exact : ${range.join(" · ")}**`,
   ].join("\n");
 
   const reasoning =
@@ -404,6 +432,10 @@ export function analyseDuel(
   return {
     tmpHome,
     tmpAway,
+    tmpPointsHome: bc ? bc.tmpHome : null,
+    tmpPointsAway: bc ? bc.tmpAway : null,
+    betclanUrl: bc ? bc.url : null,
+    scoreRange: range,
     home: best.h,
     away: best.a,
     confidence,
@@ -427,7 +459,7 @@ export function liveReady(detail: MatchDetail): boolean {
   return !detail.finished && detail.live.ongoing && m != null && m >= LIVE_THRESHOLD;
 }
 
-export function analyseMatch(detail: MatchDetail): EngineOutput {
+export function analyseMatch(detail: MatchDetail, betclan: BetclanData | null = null): EngineOutput {
   const minute = liveMinuteOf(detail);
   const useLive = minute != null && minute >= LIVE_THRESHOLD;
   return analyseDuel(
@@ -436,6 +468,7 @@ export function analyseMatch(detail: MatchDetail): EngineOutput {
     {
       league: detail.league,
       stadium: detail.stadium,
+      betclan,
       h2h: detail.h2h.summary,
       h2hCount: detail.h2h.matches.length,
       standings: {
