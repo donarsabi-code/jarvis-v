@@ -125,6 +125,42 @@ export type Database = {
         }
         Relationships: []
       }
+      onexbet_odds: {
+        Row: {
+          away: string
+          away_norm: string
+          event_id: string
+          fetched_at: string
+          home: string
+          home_norm: string
+          league: string | null
+          odds: Json
+          start_time: string | null
+        }
+        Insert: {
+          away: string
+          away_norm: string
+          event_id: string
+          fetched_at?: string
+          home: string
+          home_norm: string
+          league?: string | null
+          odds: Json
+          start_time?: string | null
+        }
+        Update: {
+          away?: string
+          away_norm?: string
+          event_id?: string
+          fetched_at?: string
+          home?: string
+          home_norm?: string
+          league?: string | null
+          odds?: Json
+          start_time?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null

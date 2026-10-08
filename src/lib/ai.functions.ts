@@ -34,8 +34,12 @@ export const getAiMatchAnalysis = createServerFn({ method: "POST" })
     // Fusion passé + signaux du direct, sans utiliser le score courant comme
     // plancher de sortie. Le résultat est ensuite figé définitivement.
     const { fetchBetclan } = await import("./betclan.server");
-    const bc = await fetchBetclan(detail.home.name, detail.away.name).catch(() => null);
-    const content = analyseMatch(detail, bc).analysis;
+    const { fetchOnexbet } = await import("./onexbet.server");
+    const [bc, ox] = await Promise.all([
+      fetchBetclan(detail.home.name, detail.away.name).catch(() => null),
+      fetchOnexbet(detail.home.name, detail.away.name).catch(() => null),
+    ]);
+    const content = analyseMatch(detail, bc, ox).analysis;
 
     await supabaseAdmin
       .from("ai_analyses")
@@ -65,6 +69,8 @@ export const getTmpDuel = createServerFn({ method: "POST" })
     }
     const { fetchBetclan } = await import("./betclan.server");
     const bcP = fetchBetclan(h.name, a.name).catch(() => null);
+    const { fetchOnexbet } = await import("./onexbet.server");
+    const oxP = fetchOnexbet(h.name, a.name).catch(() => null);
     const [hf, af] = await Promise.all([
       fetchTeamForm(h.id, h.name).catch(() => null),
       fetchTeamForm(a.id, a.name).catch(() => null),
@@ -74,7 +80,7 @@ export const getTmpDuel = createServerFn({ method: "POST" })
     const result = analyseDuel(
       { name: h.name, stats: hf.stats, form: hf.form },
       { name: a.name, stats: af.stats, form: af.form },
-      { betclan: await bcP },
+      { betclan: await bcP, odds: await oxP },
     );
 
     return {

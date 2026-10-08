@@ -5,6 +5,7 @@
  */
 import type { FormItem, MatchDetail, TeamStats } from "./fotmob.server";
 import { normName, type BetclanData } from "./betclan.server";
+import type { OnexbetOdds } from "./onexbet.server";
 function sameTeam(a: string, b: string): boolean { const x = normName(a), y = normName(b); return !!x && !!y && (x.includes(y) || y.includes(x) || x.split(" ")[0] === y.split(" ")[0]); }
 
 export type EngineOutput = {
@@ -141,6 +142,8 @@ export function analyseDuel(
     live?: LiveCtx | null;
     /** Relevé TMP officiel BetClan (source de vérité du momentum). */
     betclan?: BetclanData | null;
+    /** Cotes 1xBet (probabilités implicites du marché). */
+    odds?: OnexbetOdds | null;
   } = {},
 ): EngineOutput {
 
@@ -303,6 +306,37 @@ export function analyseDuel(
     }
     return { ...g, w };
   });
+  // ---- Réflexion de scénario : niveaux de forme, outsider, TILT, retournement ----
+  const level = (s: Side) => {
+    const fp = formPoints(s.form);
+    return fp >= 0.7 ? "maximale" : fp >= 0.42 ? "moyenne" : "faible";
+  };
+  const lvH = level(home), lvA = level(away);
+  const tilt = (s: Side) => s.form.slice(0, 3).filter((f) => f.result === "L").length >= 2;
+  const tiltH = tilt(home), tiltA = tilt(away);
+  const od = ctx.odds ?? null;
+  const favMarket = od && od.p1 != null && od.p2 != null ? (od.p1 >= od.p2 ? "H" : "A") : null;
+  const outsiderSide = favMarket === "H" ? "A" : favMarket === "A" ? "H" : null;
+  const outsiderHot = outsiderSide ? (outsiderSide === "H" ? lvH : lvA) === "maximale" && (outsiderSide === "H" ? lvA : lvH) !== "maximale" : false;
+  let scenario: string;
+  if (lvH === "maximale" && lvA === "maximale") scenario = "Deux équipes au sommet de leur forme : duel ouvert, les deux attaques s'expriment, le nul à buts et la victoire courte dominent.";
+  else if (lvH === lvA) scenario = `Deux équipes en forme ${lvH} : match fermé et tactique, le moindre fait de jeu tranche.`;
+  else if ((lvH === "maximale" && lvA === "faible") || (lvA === "maximale" && lvH === "faible")) scenario = `Écart de forme total : ${lvH === "maximale" ? home.name : away.name} doit imposer un score net.`;
+  else scenario = `Forme ${lvH} contre forme ${lvA} : avantage à ${["maximale","moyenne","faible"].indexOf(lvH) < ["maximale","moyenne","faible"].indexOf(lvA) ? home.name : away.name}, sans écrasement.`;
+  for (const g of scored) {
+    const o = g.h > g.a ? "H" : g.h === g.a ? "D" : "A";
+    if (lvH === "maximale" && lvA === "maximale" && g.h > 0 && g.a > 0) g.w *= 1.15;
+    if (lvH === lvA && lvH !== "maximale" && g.h + g.a <= 2) g.w *= 1.1;
+    if (tiltH && o === "H") g.w *= 0.88;
+    if (tiltA && o === "A") g.w *= 0.88;
+    if (outsiderHot && (o === "D" || o === outsiderSide)) g.w *= 1.12;
+    if (od) {
+      const pm = o === "H" ? od.p1 : o === "D" ? od.pX : od.p2;
+      if (pm != null) g.w *= Math.pow(Math.max(0.02, pm) / 0.33, 0.45);
+      const c = od.cs[`${g.h}-${g.a}`];
+      if (c != null) g.w = Math.pow(g.w, 0.65) * Math.pow(Math.max(0.002, c), 0.35);
+    }
+  }
   // ---- Méthode JORDAN : ancrage sur la 3ᵉ (la moins récente) des 3 dernières H2H ----
   const last3 = (bc?.h2h ?? []).slice(0, 3);
   const h2hW = last3.filter((m) => (sameTeam(m.home, home.name) ? m.hg > m.ag : m.ag > m.hg)).length;
@@ -419,6 +453,10 @@ export function analyseDuel(
     ``,
     `**Méthode JORDAN — 3 dernières H2H** — ${last3.length ? `${h2hW}V · ${h2hD}N · ${h2hL}D pour ${home.name}` : "aucune H2H BetClan exploitable"}.${third && anchor ? ` Ancrage sur la confrontation la moins récente des trois (${third.date}) : ${home.name} ${anchor[0]}-${anchor[1]} ${away.name}.` : ""}`,
     ``,
+    `**Réflexion de scénario** — ${home.name} en forme ${lvH}${tiltH ? " (en TILT)" : ""}, ${away.name} en forme ${lvA}${tiltA ? " (en TILT)" : ""}. ${scenario}${outsiderSide ? ` Outsider selon le marché : ${outsiderSide === "H" ? home.name : away.name}${outsiderHot ? ", en pleine forme : renversement possible" : ""}.` : ""}`,
+    ``,
+    od ? `**Cotes 1xBet** — 1 ${od.raw.o1 ?? "n/d"} · N ${od.raw.oX ?? "n/d"} · 2 ${od.raw.o2 ?? "n/d"}${od.over25 != null ? ` · +2,5 buts ${Math.round(od.over25 * 100)} %` : ""}${od.btts != null ? ` · les deux marquent ${Math.round(od.btts * 100)} %` : ""}.` : `**Cotes 1xBet** — non disponibles pour ce match.`,
+    ``,
     `**Forme 15 matchs (BetClan)** — ${bc?.home ? `${home.name} TMP ${bc.tmpHome} pts` : "n/d"} · ${bc?.away ? `${away.name} TMP ${bc.tmpAway} pts` : "n/d"}.`,
     ``,
     `**Score exact retenu : ${best.h}-${best.a}** · **Plage de score exact : ${range.join(" · ")}**`,
@@ -459,7 +497,7 @@ export function liveReady(detail: MatchDetail): boolean {
   return !detail.finished && detail.live.ongoing && m != null && m >= LIVE_THRESHOLD;
 }
 
-export function analyseMatch(detail: MatchDetail, betclan: BetclanData | null = null): EngineOutput {
+export function analyseMatch(detail: MatchDetail, betclan: BetclanData | null = null, odds: OnexbetOdds | null = null): EngineOutput {
   const minute = liveMinuteOf(detail);
   const useLive = false && minute != null;
   return analyseDuel(
@@ -469,6 +507,7 @@ export function analyseMatch(detail: MatchDetail, betclan: BetclanData | null = 
       league: detail.league,
       stadium: detail.stadium,
       betclan,
+      odds,
       h2h: detail.h2h.summary,
       h2hCount: detail.h2h.matches.length,
       standings: {
