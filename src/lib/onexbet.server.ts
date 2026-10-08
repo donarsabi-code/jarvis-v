@@ -127,6 +127,7 @@ export async function fetchOnexbet(home: string, away: string): Promise<OnexbetO
     const key = process.env["PULSESCORE_API_KEY"];
     if (!key) return null;
     for (let page = 1; page <= MAX_PAGES; page++) {
+      if (page > 1) await new Promise((r) => setTimeout(r, 1100));
       const res = await fetch(`${BASE}/soccer/events?limit=30&page=${page}`, {
         headers: { "X-Secret": key, "Accept-Encoding": "gzip" },
       });
